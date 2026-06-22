@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
+import { analyzeBalance } from "@/lib/analyze.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -22,7 +24,9 @@ export const Route = createFileRoute("/")({
 
 type Question = {
   prompt: string;
-  options: string[]; // ordered from darkest (0) → lightest (3)
+  options: string[];
+  // Brightness tier each option leans toward (B=0..100)
+  tiers: number[];
 };
 
 const QUESTIONS: Question[] = [
@@ -34,6 +38,7 @@ const QUESTIONS: Question[] = [
       "覺得出事很正常，計畫本來就趕不上變化，直接順應當下情況去應變",
       "認為沒必要自己死頂，直接向身邊的人尋求協助，大家一起想辦法",
     ],
+    tiers: [20, 40, 70, 90],
   },
   {
     prompt: "在團隊合作中，你通常扮演的角色是：",
@@ -43,6 +48,7 @@ const QUESTIONS: Question[] = [
       "調解者，平衡各方情緒與利益",
       "靈感發起人，帶動輕鬆積極的氛圍",
     ],
+    tiers: [10, 30, 60, 90],
   },
   {
     prompt: "當你需要做出個人的重要決定時，你的傾向是：",
@@ -52,6 +58,7 @@ const QUESTIONS: Question[] = [
       "參考少量可信賴的意見後自己權衡",
       "廣泛征求他人看法，再結合直覺選擇",
     ],
+    tiers: [10, 30, 60, 90],
   },
   {
     prompt: "你傾向如何處理內心對「失控」的恐懼?",
@@ -61,6 +68,7 @@ const QUESTIONS: Question[] = [
       "接受部分不可控，只關注自己能影響的",
       "認為失控也是體驗的一部分，願意擁抱",
     ],
+    tiers: [10, 30, 70, 100],
   },
   {
     prompt: "你更喜歡哪種社交狀態?",
@@ -70,6 +78,7 @@ const QUESTIONS: Question[] = [
       "適度社交，既有親密關係也有普通社交",
       "廣泛社交，喜歡新鮮面孔和輕鬆交流",
     ],
+    tiers: [0, 30, 70, 100],
   },
   {
     prompt: "你對「悲傷」或「低落」情緒的態度是：",
@@ -79,6 +88,7 @@ const QUESTIONS: Question[] = [
       "可以短暫停留，然後溫和地讓它離開",
       "傾向於用快樂活動快速轉移注意力",
     ],
+    tiers: [0, 30, 70, 90],
   },
   {
     prompt: "當你處於完全獨處、無事可做的狀態，你通常會：",
@@ -88,6 +98,7 @@ const QUESTIONS: Question[] = [
       "放鬆但不放縱，享受安靜的自我時間",
       "感到不適，會主動找事做或聯絡他人",
     ],
+    tiers: [10, 40, 70, 100],
   },
   {
     prompt: "如果你寫日記，內容風格更可能是：",
@@ -97,6 +108,7 @@ const QUESTIONS: Question[] = [
       "日常的所見所聞，語氣平和",
       "輕快的清單或零星靈感",
     ],
+    tiers: [0, 30, 60, 90],
   },
   {
     prompt: "面對他人的強烈情緒(如憤怒或哭泣)，你通常：",
@@ -106,6 +118,7 @@ const QUESTIONS: Question[] = [
       "主動傾聽，同理對方情緒，以陪伴回應對方",
       "嘗試用輕鬆話題化解對方情緒",
     ],
+    tiers: [10, 30, 70, 90],
   },
   {
     prompt: "你理想中的「內心平靜」更像：",
@@ -115,76 +128,35 @@ const QUESTIONS: Question[] = [
       "溪流的潺潺，持續而柔和",
       "晴空的通透，無雲也無風",
     ],
+    tiers: [10, 40, 70, 100],
   },
 ];
 
 type Shade = {
+  bValue: number;
   hex: string;
   name: string;
-  bValue: number;
-  blurb: string;
+  tagline: string;
 };
 
+// 11 shades, B=0..100 in steps of 10. HSB(0,0,B) → grayscale hex.
 const SHADES: Shade[] = [
-  {
-    hex: "#0B0C0E",
-    name: "純黑",
-    bValue: 5,
-    blurb:
-      "你目前傾向以最內斂、最克制的姿態面對世界。內裡的密度極高，沉默是你最有力的語言。在這個座標上，你並非缺席，而是把所有的能量都收攏到自己最深處。",
-  },
-  {
-    hex: "#1F2326",
-    name: "深黑灰",
-    bValue: 15,
-    blurb:
-      "你習慣在低調中積累力量。對外不輕易表態，對內卻有清晰的秩序。這份沉穩讓你即使在不確定中，也能維持一條看不見的軸線。",
-  },
-  {
-    hex: "#3A4145",
-    name: "中暗灰",
-    bValue: 30,
-    blurb:
-      "你正在採取一種安靜的蟄伏。並沒有完全封閉與世界的連結（窗戶微開），但也尚未準備好全然迎向外界的喧囂。表面看似停滯，實際上你正默默承載著成長的重量。",
-  },
-  {
-    hex: "#6B7378",
-    name: "中灰",
-    bValue: 50,
-    blurb:
-      "你站在光譜的正中央——既不刻意收，也不勉強放。這份中性讓你能在不同情境間流動，既能傾聽，也能行動。平衡，對你而言是一種彈性。",
-  },
-  {
-    hex: "#9CA3A8",
-    name: "中淺灰",
-    bValue: 65,
-    blurb:
-      "你傾向以柔和、可親近的方式存在。願意把一部分自己讓給他人，卻仍守住內在的清澈。光線在你身上是反射，而不是穿透。",
-  },
-  {
-    hex: "#C8CCCF",
-    name: "淺灰",
-    bValue: 80,
-    blurb:
-      "你以開放、輕盈的姿態面向世界。情緒流動快，恢復力強，把生活當作一連串可以重新調整的瞬間，不執著於單一答案。",
-  },
-  {
-    hex: "#ECEDEE",
-    name: "近白",
-    bValue: 95,
-    blurb:
-      "你幾乎透明地存在於日常裡。少有滯留的情緒，總能讓自己回到一種空白的清爽。對你而言，平衡是讓事物自然落地，不必過問。",
-  },
+  { bValue: 0, hex: "#000000", name: "純黑", tagline: "厚重、內斂" },
+  { bValue: 10, hex: "#1A1A1A", name: "極深灰", tagline: "沉穩、韌性" },
+  { bValue: 20, hex: "#333333", name: "暗灰", tagline: "誠懇、克制" },
+  { bValue: 30, hex: "#4D4D4D", name: "中暗灰", tagline: "堅忍、務實" },
+  { bValue: 40, hex: "#666666", name: "中灰", tagline: "穩健、緩衝" },
+  { bValue: 50, hex: "#808080", name: "標準灰", tagline: "平和、中立" },
+  { bValue: 60, hex: "#999999", name: "中淺灰", tagline: "從容、接納" },
+  { bValue: 70, hex: "#B3B3B3", name: "淺灰", tagline: "溫和、秩序" },
+  { bValue: 80, hex: "#CCCCCC", name: "明灰", tagline: "明快、效率" },
+  { bValue: 90, hex: "#E6E6E6", name: "極淺灰", tagline: "輕盈、淡然" },
+  { bValue: 100, hex: "#FFFFFF", name: "純白", tagline: "純粹、疏離" },
 ];
 
-function pickShade(answers: number[]): Shade {
-  // answers: indices 0..3, 0 = darkest, 3 = lightest
-  const valid = answers.filter((a) => a >= 0);
-  if (valid.length === 0) return SHADES[3];
-  const avg = valid.reduce((s, a) => s + a, 0) / valid.length; // 0..3
-  // map 0..3 → 0..6 across SHADES
-  const idx = Math.round((avg / 3) * (SHADES.length - 1));
-  return SHADES[Math.max(0, Math.min(SHADES.length - 1, idx))];
+function shadeForB(b: number): Shade {
+  const snapped = Math.max(0, Math.min(100, Math.round(b / 10) * 10));
+  return SHADES.find((s) => s.bValue === snapped) ?? SHADES[5];
 }
 
 type Stage =
@@ -192,7 +164,8 @@ type Stage =
   | { kind: "question"; index: number }
   | { kind: "free" }
   | { kind: "loading" }
-  | { kind: "result" };
+  | { kind: "result"; bValue: number; analysis: string }
+  | { kind: "error"; message: string };
 
 const BG = "#f2f0eb";
 const INK = "#0b0b0b";
@@ -201,15 +174,37 @@ function BalancEApp() {
   const [stage, setStage] = useState<Stage>({ kind: "intro" });
   const [answers, setAnswers] = useState<number[]>(() => Array(QUESTIONS.length).fill(-1));
   const [freeText, setFreeText] = useState("");
+  const analyze = useServerFn(analyzeBalance);
 
-  // loading → result auto transition
+  // Kick off AI analysis when entering loading stage
   useEffect(() => {
     if (stage.kind !== "loading") return;
-    const t = setTimeout(() => setStage({ kind: "result" }), 2800);
-    return () => clearTimeout(t);
-  }, [stage]);
-
-  const shade = useMemo(() => pickShade(answers), [answers]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await analyze({
+          data: {
+            answers,
+            freeText,
+            questions: QUESTIONS.map((q) => ({
+              prompt: q.prompt,
+              options: q.options,
+              tiers: q.tiers,
+            })),
+          },
+        });
+        if (cancelled) return;
+        setStage({ kind: "result", bValue: res.bValue, analysis: res.analysis });
+      } catch (e) {
+        if (cancelled) return;
+        const message = e instanceof Error ? e.message : "分析失敗，請再試一次。";
+        setStage({ kind: "error", message });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [stage, analyze, answers, freeText]);
 
   return (
     <div
@@ -257,8 +252,20 @@ function BalancEApp() {
 
         {stage.kind === "result" && (
           <ResultScreen
-            shade={shade}
-            freeText={freeText}
+            shade={shadeForB(stage.bValue)}
+            analysis={stage.analysis}
+            onRestart={() => {
+              setAnswers(Array(QUESTIONS.length).fill(-1));
+              setFreeText("");
+              setStage({ kind: "intro" });
+            }}
+          />
+        )}
+
+        {stage.kind === "error" && (
+          <ErrorScreen
+            message={stage.message}
+            onRetry={() => setStage({ kind: "loading" })}
             onRestart={() => {
               setAnswers(Array(QUESTIONS.length).fill(-1));
               setFreeText("");
@@ -303,20 +310,20 @@ and it lands somewhere between black to grey to white.
 So, where does your balance land?`}
         </p>
 
-        <div className="mt-8 flex items-center gap-1.5">
+        <div className="mt-8 flex items-center">
           {SHADES.map((s, i) => (
             <span
-              key={i}
-              className="block h-12 w-12 rounded-full sm:h-14 sm:w-14"
-              style={{ backgroundColor: s.hex, marginLeft: i === 0 ? 0 : -16 }}
+              key={s.bValue}
+              className="block h-10 sm:h-12"
+              style={{
+                backgroundColor: s.hex,
+                width: 48,
+                marginLeft: i === 0 ? 0 : -1,
+                border: s.bValue === 100 ? "1px solid #d8d6d1" : "none",
+              }}
               aria-hidden
             />
           ))}
-          <span
-            className="block h-12 w-12 rounded-full sm:h-14 sm:w-14"
-            style={{ backgroundColor: "#ffffff", border: "1px solid #d8d6d1", marginLeft: -16 }}
-            aria-hidden
-          />
         </div>
 
         <button
@@ -362,7 +369,7 @@ function QuestionScreen({
         className="text-[18px] sm:text-[22px]"
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
       >
-        Question {index + 1}/{QUESTIONS.length}
+        Question {index + 1}/11
       </div>
 
       <h2
@@ -406,7 +413,7 @@ function QuestionScreen({
           </span>
           Back
         </button>
-        <Progress current={index + 1} total={QUESTIONS.length + 1} />
+        <Progress current={index + 1} total={11} />
       </div>
 
       <div className="mt-auto flex justify-end pt-16">
@@ -440,12 +447,12 @@ function FreeScreen({
         className="mt-10 text-[22px] leading-[1.7] sm:mt-14 sm:text-[26px]"
         style={{ fontWeight: 600 }}
       >
-        請用一段話 (50字內) 描述你心中理想的「平衡」狀態。可以是一個場景、一種感覺、一個比喻，或者你曾經體驗過的某個瞬間。
+        請用一段話描述你心中理想的「平衡」狀態。可以是一個場景、一種感覺、一個比喻，或者你曾經體驗過的某個瞬間。
       </h2>
 
       <textarea
         value={value}
-        onChange={(e) => onChange(e.target.value.slice(0, 50))}
+        onChange={(e) => onChange(e.target.value.slice(0, 120))}
         placeholder="平衡是……"
         className="mt-10 w-full resize-none bg-transparent p-7 text-[18px] leading-[1.8] outline-none"
         style={{
@@ -458,7 +465,7 @@ function FreeScreen({
       <div className="mt-3 text-right text-[13px] opacity-50"
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
       >
-        {value.length}/50
+        {value.length}/120
       </div>
 
       <div className="mt-6 flex items-center justify-between">
@@ -497,7 +504,7 @@ function FreeScreen({
 
 function LoadingScreen() {
   return (
-    <div className="flex flex-1 items-center justify-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-8">
       <div
         className="balance-loader relative select-none"
         style={{
@@ -511,11 +518,14 @@ function LoadingScreen() {
         <span style={{ color: INK }}>Bala</span>
         <span className="balance-fade">ncE</span>
       </div>
+      <p
+        className="text-[14px] opacity-60"
+        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+      >
+        analyzing your balance…
+      </p>
       <style>{`
-        .balance-fade {
-          color: ${INK};
-          animation: balfade 1.6s ease-in-out infinite;
-        }
+        .balance-fade { color: ${INK}; animation: balfade 1.6s ease-in-out infinite; }
         @keyframes balfade {
           0%, 100% { color: ${INK}; }
           50% { color: ${BG}; }
@@ -527,13 +537,14 @@ function LoadingScreen() {
 
 function ResultScreen({
   shade,
-  freeText,
+  analysis,
   onRestart,
 }: {
   shade: Shade;
-  freeText: string;
+  analysis: string;
   onRestart: () => void;
 }) {
+  const textOnSwatch = shade.bValue > 55 ? "#222" : "#f2f0eb";
   return (
     <div className="flex flex-1 flex-col">
       <div className="text-[22px] sm:text-[26px]" style={{ fontWeight: 600 }}>
@@ -548,23 +559,21 @@ function ResultScreen({
               aspectRatio: "1 / 1",
               backgroundColor: shade.hex,
               maxWidth: 460,
+              border: shade.bValue === 100 ? "1px solid #d8d6d1" : "none",
             }}
           >
             <div
               className="absolute bottom-4 left-4 text-[18px]"
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                color: shade.bValue > 55 ? "#222" : "#f2f0eb",
-              }}
+              style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
             >
               {shade.hex}
             </div>
-          </div>
-          <div
-            className="mt-4 text-[14px] opacity-60"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-          >
-            B = {shade.bValue}
+            <div
+              className="absolute top-4 left-4 text-[14px]"
+              style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
+            >
+              B = {shade.bValue}
+            </div>
           </div>
         </div>
 
@@ -572,16 +581,13 @@ function ResultScreen({
           <h3 className="text-[34px] sm:text-[44px]" style={{ fontWeight: 600 }}>
             {shade.name}
           </h3>
-
-          <p className="mt-6 text-[17px] leading-[2.2]">
-            {freeText.trim()
-              ? `從你在選擇題中展現出的傾向，結合你所描繪「${freeText.trim()}」的意象，`
-              : "從你在選擇題中展現出的傾向，"}
-            {shade.blurb}
+          <p className="mt-2 text-[15px] opacity-60"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            {shade.tagline}
           </p>
 
-          <p className="mt-8 text-[17px] leading-[2.2]">
-            平衡是流動的光譜，而 B = {shade.bValue} 是你當下為自己建構的安全緩衝區。允許自己停留在這個灰階，不強逼自己立刻展現明朗，正是你處理迷茫最有效、也最溫柔的平衡方式。隨著內在力量的積累與外在環境的推移，你所在的色彩座標，自然會在未來的某刻重新流動。
+          <p className="mt-8 whitespace-pre-line text-[16px] leading-[2.1] text-left">
+            {analysis}
           </p>
         </div>
       </div>
@@ -611,6 +617,46 @@ function ResultScreen({
         >
           BalancE
         </h4>
+      </div>
+    </div>
+  );
+}
+
+function ErrorScreen({
+  message,
+  onRetry,
+  onRestart,
+}: {
+  message: string;
+  onRetry: () => void;
+  onRestart: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
+      <h3 className="text-[28px]" style={{ fontWeight: 600 }}>
+        分析暫時無法完成
+      </h3>
+      <p
+        className="max-w-lg text-[14px] opacity-60"
+        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+      >
+        {message}
+      </p>
+      <div className="flex gap-4">
+        <button
+          onClick={onRetry}
+          className="px-6 py-3 transition-opacity hover:opacity-60"
+          style={{ border: `1px solid ${INK}`, fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          Retry
+        </button>
+        <button
+          onClick={onRestart}
+          className="px-6 py-3 transition-opacity hover:opacity-60"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          Restart
+        </button>
       </div>
     </div>
   );
@@ -649,10 +695,7 @@ function Progress({ current, total }: { current: number; total: number }) {
         <span
           key={i}
           className="block h-[2px]"
-          style={{
-            width: 22,
-            backgroundColor: i < current ? INK : `${INK}33`,
-          }}
+          style={{ width: 22, backgroundColor: i < current ? INK : `${INK}33` }}
         />
       ))}
     </div>
