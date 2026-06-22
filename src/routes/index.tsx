@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { analyzeBalance } from "@/lib/analyze.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,7 +26,6 @@ export const Route = createFileRoute("/")({
 type Question = {
   prompt: string;
   options: string[];
-  // Brightness tier each option leans toward (B=0..100)
   tiers: number[];
 };
 
@@ -139,12 +139,11 @@ type Shade = {
   tagline: string;
 };
 
-// 11 shades, B=0..100 in steps of 10. HSB(0,0,B) → grayscale hex.
 const SHADES: Shade[] = [
   { bValue: 0, hex: "#000000", name: "純黑", tagline: "厚重、內斂" },
   { bValue: 10, hex: "#1A1A1A", name: "極深灰", tagline: "沉穩、韌性" },
   { bValue: 20, hex: "#333333", name: "暗灰", tagline: "誠懇、克制" },
-  { bValue: 30, hex: "#4D4D4D", name: "中暗灰", tagline: "堅忍、務實" },
+  { bValue: 30, hex: "#3A4145", name: "中暗灰", tagline: "堅忍、務實" },
   { bValue: 40, hex: "#666666", name: "中灰", tagline: "穩健、緩衝" },
   { bValue: 50, hex: "#808080", name: "標準灰", tagline: "平和、中立" },
   { bValue: 60, hex: "#999999", name: "中淺灰", tagline: "從容、接納" },
@@ -159,12 +158,21 @@ function shadeForB(b: number): Shade {
   return SHADES.find((s) => s.bValue === snapped) ?? SHADES[5];
 }
 
+type SavedResult = {
+  id: string;
+  b_value: number;
+  shade_name: string;
+  hex: string;
+  analysis: string;
+};
+
 type Stage =
   | { kind: "intro" }
   | { kind: "question"; index: number }
   | { kind: "free" }
   | { kind: "loading" }
-  | { kind: "result"; bValue: number; analysis: string }
+  | { kind: "result"; bValue: number; analysis: string; savedId?: string }
+  | { kind: "gallery" }
   | { kind: "error"; message: string };
 
 const BG = "#f2f0eb";
@@ -176,7 +184,6 @@ function BalancEApp() {
   const [freeText, setFreeText] = useState("");
   const analyze = useServerFn(analyzeBalance);
 
-  // Kick off AI analysis when entering loading stage
   useEffect(() => {
     if (stage.kind !== "loading") return;
     let cancelled = false;
@@ -194,7 +201,27 @@ function BalancEApp() {
           },
         });
         if (cancelled) return;
-        setStage({ kind: "result", bValue: res.bValue, analysis: res.analysis });
+        const shade = shadeForB(res.bValue);
+        // persist to shared gallery (best-effort)
+        let savedId: string | undefined;
+        try {
+          const { data } = await supabase
+            .from("results")
+            .insert({
+              b_value: res.bValue,
+              shade_name: shade.name,
+              hex: shade.hex,
+              analysis: res.analysis,
+              free_text: freeText || null,
+            })
+            .select("id")
+            .single();
+          savedId = data?.id;
+        } catch {
+          /* ignore */
+        }
+        if (cancelled) return;
+        setStage({ kind: "result", bValue: res.bValue, analysis: res.analysis, savedId });
       } catch (e) {
         if (cancelled) return;
         const message = e instanceof Error ? e.message : "分析失敗，請再試一次。";
@@ -206,84 +233,102 @@ function BalancEApp() {
     };
   }, [stage, analyze, answers, freeText]);
 
+  const restart = () => {
+    setAnswers(Array(QUESTIONS.length).fill(-1));
+    setFreeText("");
+    setStage({ kind: "intro" });
+  };
+
   return (
     <div
       className="min-h-screen w-full"
       style={{ backgroundColor: BG, color: INK, fontFamily: "'Noto Serif TC', serif" }}
     >
-      <div className="mx-auto flex min-h-screen max-w-[1180px] flex-col px-10 py-10 sm:px-14 sm:py-14">
-        {stage.kind === "intro" && <Intro onBegin={() => setStage({ kind: "question", index: 0 })} />}
+      {stage.kind === "gallery" ? (
+        <GalleryScreen onRestart={restart} highlightId={undefined} />
+      ) : (
+        <div className="mx-auto flex min-h-screen max-w-[1180px] flex-col px-10 py-10 sm:px-14 sm:py-14">
+          {stage.kind === "intro" && (
+            <Intro
+              onBegin={() => setStage({ kind: "question", index: 0 })}
+              onGallery={() => setStage({ kind: "gallery" })}
+            />
+          )}
 
-        {stage.kind === "question" && (
-          <QuestionScreen
-            index={stage.index}
-            question={QUESTIONS[stage.index]}
-            selected={answers[stage.index]}
-            onSelect={(opt) => {
-              const next = [...answers];
-              next[stage.index] = opt;
-              setAnswers(next);
-              setTimeout(() => {
-                if (stage.index + 1 < QUESTIONS.length) {
-                  setStage({ kind: "question", index: stage.index + 1 });
-                } else {
-                  setStage({ kind: "free" });
-                }
-              }, 220);
-            }}
-            onBack={
-              stage.index > 0
-                ? () => setStage({ kind: "question", index: stage.index - 1 })
-                : () => setStage({ kind: "intro" })
-            }
-          />
-        )}
+          {stage.kind === "question" && (
+            <QuestionScreen
+              index={stage.index}
+              question={QUESTIONS[stage.index]}
+              selected={answers[stage.index]}
+              onSelect={(opt) => {
+                const next = [...answers];
+                next[stage.index] = opt;
+                setAnswers(next);
+                setTimeout(() => {
+                  if (stage.index + 1 < QUESTIONS.length) {
+                    setStage({ kind: "question", index: stage.index + 1 });
+                  } else {
+                    setStage({ kind: "free" });
+                  }
+                }, 220);
+              }}
+              onBack={
+                stage.index > 0
+                  ? () => setStage({ kind: "question", index: stage.index - 1 })
+                  : () => setStage({ kind: "intro" })
+              }
+            />
+          )}
 
-        {stage.kind === "free" && (
-          <FreeScreen
-            value={freeText}
-            onChange={setFreeText}
-            onBack={() => setStage({ kind: "question", index: QUESTIONS.length - 1 })}
-            onResults={() => setStage({ kind: "loading" })}
-          />
-        )}
+          {stage.kind === "free" && (
+            <FreeScreen
+              value={freeText}
+              onChange={setFreeText}
+              onBack={() => setStage({ kind: "question", index: QUESTIONS.length - 1 })}
+              onResults={() => setStage({ kind: "loading" })}
+            />
+          )}
 
-        {stage.kind === "loading" && <LoadingScreen />}
+          {stage.kind === "loading" && <LoadingScreen />}
 
-        {stage.kind === "result" && (
-          <ResultScreen
-            shade={shadeForB(stage.bValue)}
-            analysis={stage.analysis}
-            onRestart={() => {
-              setAnswers(Array(QUESTIONS.length).fill(-1));
-              setFreeText("");
-              setStage({ kind: "intro" });
-            }}
-          />
-        )}
+          {stage.kind === "result" && (
+            <ResultScreen
+              shade={shadeForB(stage.bValue)}
+              analysis={stage.analysis}
+              onGallery={() => setStage({ kind: "gallery" })}
+              onRestart={restart}
+            />
+          )}
 
-        {stage.kind === "error" && (
-          <ErrorScreen
-            message={stage.message}
-            onRetry={() => setStage({ kind: "loading" })}
-            onRestart={() => {
-              setAnswers(Array(QUESTIONS.length).fill(-1));
-              setFreeText("");
-              setStage({ kind: "intro" });
-            }}
-          />
-        )}
-      </div>
+          {stage.kind === "error" && (
+            <ErrorScreen
+              message={stage.message}
+              onRetry={() => setStage({ kind: "loading" })}
+              onRestart={restart}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Shared SVG filter for fluid text distortion */}
+      <FluidFilterDefs />
     </div>
   );
 }
 
 /* ---------------- screens ---------------- */
 
-function Intro({ onBegin }: { onBegin: () => void }) {
+function Intro({ onBegin, onGallery }: { onBegin: () => void; onGallery: () => void }) {
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex justify-end">
+      <div className="flex items-start justify-between">
+        <button
+          onClick={onGallery}
+          className="inline-flex items-center gap-2 text-[14px] transition-opacity hover:opacity-60"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          Gallery →
+        </button>
         <h1
           className="leading-none tracking-tight"
           style={{
@@ -462,7 +507,8 @@ function FreeScreen({
         }}
       />
 
-      <div className="mt-3 text-right text-[13px] opacity-50"
+      <div
+        className="mt-3 text-right text-[13px] opacity-50"
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
       >
         {value.length}/120
@@ -505,32 +551,13 @@ function FreeScreen({
 function LoadingScreen() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-8">
-      <div
-        className="balance-loader relative select-none"
-        style={{
-          fontFamily: "Inter, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(48px, 9vw, 130px)",
-          letterSpacing: "-0.04em",
-          lineHeight: 1,
-        }}
-      >
-        <span style={{ color: INK }}>Bala</span>
-        <span className="balance-fade">ncE</span>
-      </div>
+      <FluidText text="BalancE" size="clamp(72px, 14vw, 200px)" />
       <p
         className="text-[14px] opacity-60"
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
       >
         analyzing your balance…
       </p>
-      <style>{`
-        .balance-fade { color: ${INK}; animation: balfade 1.6s ease-in-out infinite; }
-        @keyframes balfade {
-          0%, 100% { color: ${INK}; }
-          50% { color: ${BG}; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -538,70 +565,86 @@ function LoadingScreen() {
 function ResultScreen({
   shade,
   analysis,
+  onGallery,
   onRestart,
 }: {
   shade: Shade;
   analysis: string;
+  onGallery: () => void;
   onRestart: () => void;
 }) {
   const textOnSwatch = shade.bValue > 55 ? "#222" : "#f2f0eb";
+  // Split analysis into two paragraphs — first ~2 sentences, rest second.
+  const paragraphs = useMemo(() => splitAnalysis(analysis), [analysis]);
+
   return (
     <div className="flex flex-1 flex-col">
-      <div className="text-[22px] sm:text-[26px]" style={{ fontWeight: 600 }}>
+      <h2 className="text-[28px] sm:text-[34px]" style={{ fontWeight: 700 }}>
         分析結果
-      </div>
+      </h2>
 
-      <div className="mt-10 grid grid-cols-1 gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+      <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div>
           <div
             className="relative w-full"
             style={{
               aspectRatio: "1 / 1",
               backgroundColor: shade.hex,
-              maxWidth: 460,
+              maxWidth: 440,
               border: shade.bValue === 100 ? "1px solid #d8d6d1" : "none",
             }}
           >
             <div
-              className="absolute bottom-4 left-4 text-[18px]"
+              className="absolute bottom-4 left-5 text-[20px]"
               style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
             >
               {shade.hex}
-            </div>
-            <div
-              className="absolute top-4 left-4 text-[14px]"
-              style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
-            >
-              B = {shade.bValue}
             </div>
           </div>
         </div>
 
         <div className="text-right">
-          <h3 className="text-[34px] sm:text-[44px]" style={{ fontWeight: 600 }}>
+          <h3 className="text-[40px] sm:text-[52px] leading-none" style={{ fontWeight: 700 }}>
             {shade.name}
           </h3>
-          <p className="mt-2 text-[15px] opacity-60"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            {shade.tagline}
-          </p>
-
-          <p className="mt-8 whitespace-pre-line text-[16px] leading-[2.1] text-left">
-            {analysis}
+          <p
+            className="mt-6 whitespace-pre-line text-[16px] leading-[2.2]"
+            style={{ fontFamily: "'Noto Serif TC', serif" }}
+          >
+            {paragraphs[0]}
           </p>
         </div>
       </div>
 
-      <div className="mt-12 flex items-center justify-between">
+      <div className="mt-12">
+        <p
+          className="mx-auto max-w-[760px] whitespace-pre-line text-center text-[16px] leading-[2.2]"
+          style={{ fontFamily: "'Noto Serif TC', serif" }}
+        >
+          {paragraphs[1]}
+        </p>
+      </div>
+
+      <div className="mt-10 flex items-center justify-end gap-6">
         <button
           onClick={onRestart}
-          className="inline-flex items-center gap-3 text-[15px] transition-opacity hover:opacity-60"
+          className="text-[14px] opacity-50 transition-opacity hover:opacity-80"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
-          <span style={{ transform: "rotate(180deg)", display: "inline-block" }}>
+          restart
+        </button>
+        <button
+          onClick={onGallery}
+          className="inline-flex items-center gap-4 transition-opacity hover:opacity-60"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          <span className="text-[18px]">See others' results</span>
+          <span
+            className="grid place-items-center rounded-full"
+            style={{ width: 48, height: 48, border: `1.5px solid ${INK}` }}
+          >
             <Arrow />
           </span>
-          Restart
         </button>
       </div>
 
@@ -611,7 +654,7 @@ function ResultScreen({
           style={{
             fontFamily: "Inter, sans-serif",
             fontWeight: 900,
-            fontSize: "clamp(60px, 11vw, 160px)",
+            fontSize: "clamp(80px, 16vw, 220px)",
             letterSpacing: "-0.04em",
           }}
         >
@@ -620,6 +663,15 @@ function ResultScreen({
       </div>
     </div>
   );
+}
+
+function splitAnalysis(text: string): [string, string] {
+  const clean = text.trim();
+  // Try to split at the midpoint sentence boundary.
+  const sentences = clean.split(/(?<=[。！？!?])/g).filter((s) => s.trim().length > 0);
+  if (sentences.length <= 1) return [clean, ""];
+  const mid = Math.ceil(sentences.length / 2);
+  return [sentences.slice(0, mid).join(""), sentences.slice(mid).join("")];
 }
 
 function ErrorScreen({
@@ -662,12 +714,337 @@ function ErrorScreen({
   );
 }
 
+/* ---------------- gallery ---------------- */
+
+type CardLayout = {
+  id: string;
+  leftPct: number;
+  topPct: number;
+  rotate: number;
+  delay: number;
+  result: SavedResult;
+};
+
+function GalleryScreen({
+  onRestart,
+}: {
+  onRestart: () => void;
+  highlightId?: string;
+}) {
+  const [cards, setCards] = useState<CardLayout[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const seenIds = useRef<Set<string>>(new Set());
+
+  // initial load + realtime subscription
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase
+        .from("results")
+        .select("id, b_value, shade_name, hex, analysis")
+        .order("created_at", { ascending: true })
+        .limit(120);
+      if (!mounted) return;
+      const layouts = (data ?? []).map((r, i) => {
+        seenIds.current.add(r.id);
+        return makeLayout(r as SavedResult, i * 0.12);
+      });
+      setCards(layouts);
+      setLoaded(true);
+    })();
+
+    const channel = supabase
+      .channel("results-stream")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "results" },
+        (payload) => {
+          const r = payload.new as SavedResult;
+          if (seenIds.current.has(r.id)) return;
+          seenIds.current.add(r.id);
+          setCards((prev) => [...prev, makeLayout(r, 0)]);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const opened = openId ? cards.find((c) => c.id === openId) : null;
+
+  return (
+    <div
+      className="relative min-h-screen w-full overflow-hidden"
+      style={{ backgroundColor: BG, color: INK }}
+    >
+      {/* fluid title hovering in center */}
+      <div className="pointer-events-none absolute inset-x-0 top-[28%] z-[1] flex justify-center">
+        <FluidText text="BalancE" size="clamp(100px, 18vw, 280px)" tone="ghost" />
+      </div>
+
+      {/* top bar */}
+      <div className="relative z-30 flex items-center justify-between px-8 py-6">
+        <button
+          onClick={onRestart}
+          className="inline-flex items-center gap-2 text-[14px] transition-opacity hover:opacity-60"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          <span style={{ transform: "rotate(180deg)", display: "inline-block" }}>
+            <Arrow />
+          </span>
+          take the test
+        </button>
+        <div
+          className="text-[13px] opacity-60"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          {loaded ? `${cards.length} balances landed` : "loading…"}
+        </div>
+      </div>
+
+      {/* fallen cards */}
+      <div className="absolute inset-0 z-10">
+        {cards.map((c) => (
+          <FallingCard key={c.id} layout={c} onOpen={() => setOpenId(c.id)} />
+        ))}
+      </div>
+
+      {/* modal */}
+      {opened && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center px-6 py-10"
+          style={{ backgroundColor: "rgba(11,11,11,0.55)" }}
+          onClick={() => setOpenId(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-[760px] overflow-y-auto"
+            style={{
+              backgroundColor: BG,
+              padding: "44px 48px",
+              maxHeight: "85vh",
+              boxShadow: "0 30px 80px -20px rgba(0,0,0,0.4)",
+            }}
+          >
+            <button
+              onClick={() => setOpenId(null)}
+              className="absolute right-5 top-4 text-[20px] opacity-60 hover:opacity-100"
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <ResultCardDetail result={opened.result} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function makeLayout(r: SavedResult, delay: number): CardLayout {
+  // deterministic pseudo-random from id
+  const seed = hashStr(r.id);
+  const rand = mulberry32(seed);
+  const leftPct = 6 + rand() * 78; // 6%..84%
+  const topPct = 18 + rand() * 60; // 18%..78%
+  const rotate = (rand() - 0.5) * 36; // -18..18 deg
+  return { id: r.id, leftPct, topPct, rotate, delay, result: r };
+}
+
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function mulberry32(a: number) {
+  return function () {
+    let t = (a += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function FallingCard({ layout, onOpen }: { layout: CardLayout; onOpen: () => void }) {
+  const { leftPct, topPct, rotate, delay, result } = layout;
+  return (
+    <button
+      onClick={onOpen}
+      className="absolute z-20 cursor-pointer text-left"
+      style={{
+        left: `${leftPct}%`,
+        top: `${topPct}%`,
+        width: "clamp(140px, 14vw, 220px)",
+        transform: `rotate(${rotate}deg)`,
+        animation: `cardDrop 1.1s cubic-bezier(.22,1,.36,1) both`,
+        animationDelay: `${delay}s`,
+        transformOrigin: "center",
+      }}
+    >
+      <div
+        className="relative"
+        style={{
+          backgroundColor: "#fafaf6",
+          boxShadow: "0 18px 28px -16px rgba(0,0,0,0.35), 0 4px 8px -4px rgba(0,0,0,0.15)",
+          padding: "14px",
+          aspectRatio: "3 / 4",
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: result.hex,
+            width: "100%",
+            aspectRatio: "1 / 1",
+            border: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
+          }}
+        />
+        <div
+          className="mt-2 text-[10px] opacity-70"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          {result.hex}
+        </div>
+        <div className="text-[13px]" style={{ fontWeight: 700 }}>
+          {result.shade_name}
+        </div>
+        <div
+          className="mt-auto pt-2 text-[11px]"
+          style={{ fontFamily: "Inter, sans-serif", fontWeight: 900, letterSpacing: "-0.02em" }}
+        >
+          BalancE
+        </div>
+      </div>
+      <style>{`
+        @keyframes cardDrop {
+          0% { transform: translateY(-120vh) rotate(${rotate - 40}deg); opacity: 0; }
+          70% { opacity: 1; }
+          100% { transform: translateY(0) rotate(${rotate}deg); opacity: 1; }
+        }
+      `}</style>
+    </button>
+  );
+}
+
+function ResultCardDetail({ result }: { result: SavedResult }) {
+  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2f0eb";
+  const paragraphs = splitAnalysis(result.analysis);
+  return (
+    <div>
+      <h2 className="text-[24px]" style={{ fontWeight: 700 }}>
+        分析結果
+      </h2>
+      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-[180px_1fr]">
+        <div
+          className="relative"
+          style={{
+            backgroundColor: result.hex,
+            aspectRatio: "1 / 1",
+            border: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
+          }}
+        >
+          <div
+            className="absolute bottom-2 left-2 text-[13px]"
+            style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
+          >
+            {result.hex}
+          </div>
+        </div>
+        <div className="text-right">
+          <h3 className="text-[30px] leading-none" style={{ fontWeight: 700 }}>
+            {result.shade_name}
+          </h3>
+          <p className="mt-4 whitespace-pre-line text-[14px] leading-[2]">{paragraphs[0]}</p>
+        </div>
+      </div>
+      {paragraphs[1] && (
+        <p className="mt-6 whitespace-pre-line text-center text-[14px] leading-[2]">
+          {paragraphs[1]}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- fluid text ---------------- */
+
+function FluidFilterDefs() {
+  return (
+    <svg
+      width="0"
+      height="0"
+      style={{ position: "absolute", width: 0, height: 0 }}
+      aria-hidden
+    >
+      <defs>
+        <filter id="balance-fluid" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.012 0.022"
+            numOctaves="2"
+            seed="3"
+            result="noise"
+          >
+            <animate
+              attributeName="baseFrequency"
+              dur="14s"
+              values="0.010 0.018; 0.020 0.030; 0.010 0.018"
+              repeatCount="indefinite"
+            />
+          </feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="22" />
+        </filter>
+      </defs>
+    </svg>
+  );
+}
+
+function FluidText({
+  text,
+  size,
+  tone = "ink",
+}: {
+  text: string;
+  size: string;
+  tone?: "ink" | "ghost";
+}) {
+  const color = tone === "ghost" ? "rgba(11,11,11,0.10)" : INK;
+  return (
+    <div
+      className="select-none leading-none"
+      style={{
+        fontFamily: "Inter, sans-serif",
+        fontWeight: 900,
+        fontSize: size,
+        letterSpacing: "-0.045em",
+        color,
+        filter: "url(#balance-fluid)",
+        willChange: "filter",
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
 /* ---------------- bits ---------------- */
 
 function Arrow() {
   return (
     <svg width="18" height="12" viewBox="0 0 18 12" fill="none" aria-hidden>
-      <path d="M1 6h15M11 1l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M1 6h15M11 1l5 5-5 5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
