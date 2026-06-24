@@ -931,7 +931,7 @@ function FallingCard({ layout, onOpen }: { layout: CardLayout; onOpen: () => voi
 }
 
 function ResultCardDetail({ result }: { result: SavedResult }) {
-  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2f0eb";
+  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2efee";
   const paragraphs = splitAnalysis(result.analysis);
   return (
     <div>
