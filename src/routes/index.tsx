@@ -327,9 +327,17 @@ function Intro({ onBegin, onGallery }: { onBegin: () => void; onGallery: () => v
         >
           Gallery →
         </button>
-        <div style={{ flex: "0 0 auto" }}>
-          <SplitWaveLogo size="clamp(80px, 14vw, 220px)" />
-        </div>
+        <h1
+          className="leading-none tracking-tight"
+          style={{
+            fontFamily: "Inter, sans-serif",
+            fontWeight: 900,
+            fontSize: "clamp(80px, 14vw, 220px)",
+            letterSpacing: "-0.04em",
+          }}
+        >
+          BalancE
+        </h1>
       </div>
 
       <div className="mt-auto">
@@ -639,7 +647,17 @@ function ResultScreen({
       </div>
 
       <div className="mt-auto pt-16">
-        <SplitWaveLogo size="clamp(80px, 16vw, 220px)" />
+        <h4
+          className="leading-none"
+          style={{
+            fontFamily: "Inter, sans-serif",
+            fontWeight: 900,
+            fontSize: "clamp(80px, 16vw, 220px)",
+            letterSpacing: "-0.04em",
+          }}
+        >
+          BalancE
+        </h4>
       </div>
     </div>
   );
@@ -854,7 +872,6 @@ function mulberry32(a: number) {
 
 function FallingCard({ layout, onOpen }: { layout: CardLayout; onOpen: () => void }) {
   const { leftPct, topPct, rotate, delay, result } = layout;
-  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2efee";
   return (
     <button
       onClick={onOpen}
@@ -862,7 +879,7 @@ function FallingCard({ layout, onOpen }: { layout: CardLayout; onOpen: () => voi
       style={{
         left: `${leftPct}%`,
         top: `${topPct}%`,
-        width: "clamp(260px, 26vw, 360px)",
+        width: "clamp(140px, 14vw, 220px)",
         transform: `rotate(${rotate}deg)`,
         animation: `cardDrop 1.1s cubic-bezier(.22,1,.36,1) both`,
         animationDelay: `${delay}s`,
@@ -870,60 +887,36 @@ function FallingCard({ layout, onOpen }: { layout: CardLayout; onOpen: () => voi
       }}
     >
       <div
-        className="relative flex flex-col"
+        className="relative"
         style={{
           backgroundColor: "#fafaf6",
-          boxShadow: "0 22px 36px -18px rgba(0,0,0,0.4), 0 6px 12px -6px rgba(0,0,0,0.18)",
-          padding: "18px",
-          gap: 12,
+          boxShadow: "0 18px 28px -16px rgba(0,0,0,0.35), 0 4px 8px -4px rgba(0,0,0,0.15)",
+          padding: "14px",
+          aspectRatio: "3 / 4",
         }}
       >
         <div
-          className="relative"
           style={{
             backgroundColor: result.hex,
             width: "100%",
             aspectRatio: "1 / 1",
             border: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
           }}
-        >
-          <div
-            className="absolute bottom-2 left-2 text-[11px]"
-            style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
-          >
-            {result.hex}
-          </div>
-        </div>
-
-        <div className="flex items-baseline justify-between gap-2">
-          <div className="text-[20px] leading-none" style={{ fontWeight: 800 }}>
-            {result.shade_name}
-          </div>
-          <div
-            className="text-[10px] opacity-60"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-          >
-            b={result.b_value}
-          </div>
-        </div>
-
-        <p
-          className="text-[11.5px] leading-[1.75]"
-          style={{ fontFamily: "'Noto Serif TC', serif", color: "#1a1a1a" }}
-        >
-          {result.analysis}
-        </p>
-
+        />
         <div
-          className="mt-1 border-t pt-2 text-[10px] opacity-80"
-          style={{
-            borderColor: "#0b0b0b22",
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 900,
-            letterSpacing: "-0.02em",
-          }}
+          className="mt-2 text-[10px] opacity-70"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
-          BalancE — tap to enlarge
+          {result.hex}
+        </div>
+        <div className="text-[13px]" style={{ fontWeight: 700 }}>
+          {result.shade_name}
+        </div>
+        <div
+          className="mt-auto pt-2 text-[11px]"
+          style={{ fontFamily: "Inter, sans-serif", fontWeight: 900, letterSpacing: "-0.02em" }}
+        >
+          BalancE
         </div>
       </div>
       <style>{`
@@ -980,14 +973,7 @@ function ResultCardDetail({ result }: { result: SavedResult }) {
 /* ---------------- split wave logo ---------------- */
 
 function SplitWaveLogo({ size = "clamp(80px, 14vw, 220px)" }: { size?: string }) {
-  // Two stacked wave bands sliding in opposite directions, clipped to the
-  // "BalancE" wordmark, so it reads as black liquid sloshing inside the letters.
-  const clipId = "wave-clip-text";
-  const wave1 =
-    "M-520,30 C-460,18 -400,46 -340,34 C-280,22 -220,50 -160,38 C-100,26 -40,54 20,42 C80,30 140,58 200,46 C260,34 320,62 380,50 C440,38 500,66 560,54 L560,120 L-520,120 Z";
-  const wave2 =
-    "M-520,46 C-460,58 -400,30 -340,42 C-280,54 -220,26 -160,38 C-100,50 -40,22 20,34 C80,46 140,18 200,30 C260,42 320,14 380,26 C440,38 500,10 560,22 L560,120 L-520,120 Z";
-
+  const id = "wave-clip";
   return (
     <svg
       viewBox="0 0 520 90"
@@ -996,24 +982,10 @@ function SplitWaveLogo({ size = "clamp(80px, 14vw, 220px)" }: { size?: string })
       style={{ width: size, height: "auto", display: "block" }}
     >
       <defs>
-        <clipPath id={clipId}>
-          <text
-            x="260"
-            y="64"
-            textAnchor="middle"
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontWeight: 900,
-              fontSize: 68,
-              letterSpacing: "-0.045em",
-            }}
-          >
-            BalancE
-          </text>
+        <clipPath id={id}>
+          <path d="M-30,-15 L550,-15 L550,42 C460,58 370,26 280,42 C190,58 100,26 10,42 L-30,42 Z" />
         </clipPath>
       </defs>
-
-      {/* light base of the wordmark */}
       <text
         x="260"
         y="64"
@@ -1024,38 +996,25 @@ function SplitWaveLogo({ size = "clamp(80px, 14vw, 220px)" }: { size?: string })
           fontSize: 68,
           letterSpacing: "-0.045em",
         }}
-        fill="#dad7d2"
+        fill="#0b0b0b"
       >
         BalancE
       </text>
-
-      {/* animated black fluid clipped to the letterforms */}
-      <g clipPath={`url(#${clipId})`}>
-        <g style={{ animation: "wavePan 7s linear infinite" }}>
-          <path d={wave1} fill="#0b0b0b" />
-        </g>
-        <g style={{ animation: "wavePanRev 9s linear infinite", opacity: 0.85 }}>
-          <path d={wave2} fill="#0b0b0b" />
-        </g>
-        <g style={{ animation: "waveTide 4.5s ease-in-out infinite" }}>
-          <path d={wave1} fill="#0b0b0b" opacity="0.55" />
-        </g>
-      </g>
-
-      <style>{`
-        @keyframes wavePan {
-          0%   { transform: translateX(0px); }
-          100% { transform: translateX(260px); }
-        }
-        @keyframes wavePanRev {
-          0%   { transform: translateX(260px); }
-          100% { transform: translateX(0px); }
-        }
-        @keyframes waveTide {
-          0%, 100% { transform: translate(120px, 0px); }
-          50%      { transform: translate(120px, -14px); }
-        }
-      `}</style>
+      <text
+        x="260"
+        y="64"
+        textAnchor="middle"
+        clipPath={`url(#${id})`}
+        style={{
+          fontFamily: "Inter, sans-serif",
+          fontWeight: 900,
+          fontSize: 68,
+          letterSpacing: "-0.045em",
+        }}
+        fill="#cccccc"
+      >
+        BalancE
+      </text>
     </svg>
   );
 }
@@ -1077,7 +1036,19 @@ function Arrow() {
 }
 
 function BalanceMark() {
-  return <SplitWaveLogo size="clamp(48px, 8vw, 120px)" />;
+  return (
+    <div
+      className="leading-none"
+      style={{
+        fontFamily: "Inter, sans-serif",
+        fontWeight: 900,
+        fontSize: "clamp(48px, 8vw, 120px)",
+        letterSpacing: "-0.04em",
+      }}
+    >
+      BalancE
+    </div>
+  );
 }
 
 function Progress({ current, total }: { current: number; total: number }) {
