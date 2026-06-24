@@ -779,9 +779,9 @@ function GalleryScreen({
       className="relative min-h-screen w-full overflow-hidden"
       style={{ backgroundColor: BG, color: INK }}
     >
-      {/* fluid title hovering in center */}
+      {/* split-wave logo hovering in center */}
       <div className="pointer-events-none absolute inset-x-0 top-[28%] z-[1] flex justify-center">
-        <FluidText text="BalancE" size="clamp(100px, 18vw, 280px)" tone="ghost" />
+        <SplitWaveLogo size="clamp(100px, 18vw, 280px)" />
       </div>
 
       {/* top bar */}
