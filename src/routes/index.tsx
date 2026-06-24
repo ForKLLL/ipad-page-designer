@@ -639,17 +639,7 @@ function ResultScreen({
       </div>
 
       <div className="mt-auto pt-16">
-        <h4
-          className="leading-none"
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 900,
-            fontSize: "clamp(80px, 16vw, 220px)",
-            letterSpacing: "-0.04em",
-          }}
-        >
-          BalancE
-        </h4>
+        <SplitWaveLogo size="clamp(80px, 16vw, 220px)" />
       </div>
     </div>
   );
