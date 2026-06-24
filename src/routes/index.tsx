@@ -551,7 +551,7 @@ function FreeScreen({
 function LoadingScreen() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-8">
-      <FluidText text="BalancE" size="clamp(72px, 14vw, 200px)" />
+      <SplitWaveLogo size="clamp(80px, 14vw, 220px)" />
       <p
         className="text-[14px] opacity-60"
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
