@@ -1077,19 +1077,7 @@ function Arrow() {
 }
 
 function BalanceMark() {
-  return (
-    <div
-      className="leading-none"
-      style={{
-        fontFamily: "Inter, sans-serif",
-        fontWeight: 900,
-        fontSize: "clamp(48px, 8vw, 120px)",
-        letterSpacing: "-0.04em",
-      }}
-    >
-      BalancE
-    </div>
-  );
+  return <SplitWaveLogo size="clamp(48px, 8vw, 120px)" />;
 }
 
 function Progress({ current, total }: { current: number; total: number }) {
