@@ -973,7 +973,14 @@ function ResultCardDetail({ result }: { result: SavedResult }) {
 /* ---------------- split wave logo ---------------- */
 
 function SplitWaveLogo({ size = "clamp(80px, 14vw, 220px)" }: { size?: string }) {
-  const id = "wave-clip";
+  // Two stacked wave bands sliding in opposite directions, clipped to the
+  // "BalancE" wordmark, so it reads as black liquid sloshing inside the letters.
+  const clipId = "wave-clip-text";
+  const wave1 =
+    "M-520,30 C-460,18 -400,46 -340,34 C-280,22 -220,50 -160,38 C-100,26 -40,54 20,42 C80,30 140,58 200,46 C260,34 320,62 380,50 C440,38 500,66 560,54 L560,120 L-520,120 Z";
+  const wave2 =
+    "M-520,46 C-460,58 -400,30 -340,42 C-280,54 -220,26 -160,38 C-100,50 -40,22 20,34 C80,46 140,18 200,30 C260,42 320,14 380,26 C440,38 500,10 560,22 L560,120 L-520,120 Z";
+
   return (
     <svg
       viewBox="0 0 520 90"
@@ -982,10 +989,24 @@ function SplitWaveLogo({ size = "clamp(80px, 14vw, 220px)" }: { size?: string })
       style={{ width: size, height: "auto", display: "block" }}
     >
       <defs>
-        <clipPath id={id}>
-          <path d="M-30,-15 L550,-15 L550,42 C460,58 370,26 280,42 C190,58 100,26 10,42 L-30,42 Z" />
+        <clipPath id={clipId}>
+          <text
+            x="260"
+            y="64"
+            textAnchor="middle"
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 900,
+              fontSize: 68,
+              letterSpacing: "-0.045em",
+            }}
+          >
+            BalancE
+          </text>
         </clipPath>
       </defs>
+
+      {/* light base of the wordmark */}
       <text
         x="260"
         y="64"
@@ -996,25 +1017,38 @@ function SplitWaveLogo({ size = "clamp(80px, 14vw, 220px)" }: { size?: string })
           fontSize: 68,
           letterSpacing: "-0.045em",
         }}
-        fill="#0b0b0b"
+        fill="#dad7d2"
       >
         BalancE
       </text>
-      <text
-        x="260"
-        y="64"
-        textAnchor="middle"
-        clipPath={`url(#${id})`}
-        style={{
-          fontFamily: "Inter, sans-serif",
-          fontWeight: 900,
-          fontSize: 68,
-          letterSpacing: "-0.045em",
-        }}
-        fill="#cccccc"
-      >
-        BalancE
-      </text>
+
+      {/* animated black fluid clipped to the letterforms */}
+      <g clipPath={`url(#${clipId})`}>
+        <g style={{ animation: "wavePan 7s linear infinite" }}>
+          <path d={wave1} fill="#0b0b0b" />
+        </g>
+        <g style={{ animation: "wavePanRev 9s linear infinite", opacity: 0.85 }}>
+          <path d={wave2} fill="#0b0b0b" />
+        </g>
+        <g style={{ animation: "waveTide 4.5s ease-in-out infinite" }}>
+          <path d={wave1} fill="#0b0b0b" opacity="0.55" />
+        </g>
+      </g>
+
+      <style>{`
+        @keyframes wavePan {
+          0%   { transform: translateX(0px); }
+          100% { transform: translateX(260px); }
+        }
+        @keyframes wavePanRev {
+          0%   { transform: translateX(260px); }
+          100% { transform: translateX(0px); }
+        }
+        @keyframes waveTide {
+          0%, 100% { transform: translate(120px, 0px); }
+          50%      { transform: translate(120px, -14px); }
+        }
+      `}</style>
     </svg>
   );
 }
