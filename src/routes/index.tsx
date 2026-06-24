@@ -327,17 +327,9 @@ function Intro({ onBegin, onGallery }: { onBegin: () => void; onGallery: () => v
         >
           Gallery →
         </button>
-        <h1
-          className="leading-none tracking-tight"
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 900,
-            fontSize: "clamp(80px, 14vw, 220px)",
-            letterSpacing: "-0.04em",
-          }}
-        >
-          BalancE
-        </h1>
+        <div style={{ flex: "0 0 auto" }}>
+          <SplitWaveLogo size="clamp(80px, 14vw, 220px)" />
+        </div>
       </div>
 
       <div className="mt-auto">
