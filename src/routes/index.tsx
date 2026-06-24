@@ -571,7 +571,7 @@ function ResultScreen({
   onGallery: () => void;
   onRestart: () => void;
 }) {
-  const textOnSwatch = shade.bValue > 55 ? "#222" : "#f2f0eb";
+  const textOnSwatch = shade.bValue > 55 ? "#222" : "#f2efee";
   // Split analysis into two paragraphs — first ~2 sentences, rest second.
   const paragraphs = useMemo(() => splitAnalysis(analysis), [analysis]);
 
