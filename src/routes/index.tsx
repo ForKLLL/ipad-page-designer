@@ -310,8 +310,6 @@ function BalancEApp() {
         </div>
       )}
 
-      {/* Shared SVG filter for fluid text distortion */}
-      <FluidFilterDefs />
     </div>
   );
 }
