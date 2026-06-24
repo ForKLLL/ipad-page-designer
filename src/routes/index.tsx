@@ -175,7 +175,7 @@ type Stage =
   | { kind: "gallery" }
   | { kind: "error"; message: string };
 
-const BG = "#f2f0eb";
+const BG = "#f2efee";
 const INK = "#0b0b0b";
 
 function BalancEApp() {
