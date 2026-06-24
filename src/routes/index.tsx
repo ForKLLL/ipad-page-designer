@@ -175,7 +175,7 @@ type Stage =
   | { kind: "gallery" }
   | { kind: "error"; message: string };
 
-const BG = "#f2f0eb";
+const BG = "#f2efee";
 const INK = "#0b0b0b";
 
 function BalancEApp() {
@@ -310,8 +310,6 @@ function BalancEApp() {
         </div>
       )}
 
-      {/* Shared SVG filter for fluid text distortion */}
-      <FluidFilterDefs />
     </div>
   );
 }
@@ -551,7 +549,7 @@ function FreeScreen({
 function LoadingScreen() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-8">
-      <FluidText text="BalancE" size="clamp(72px, 14vw, 200px)" />
+      <SplitWaveLogo size="clamp(80px, 14vw, 220px)" />
       <p
         className="text-[14px] opacity-60"
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
@@ -573,7 +571,7 @@ function ResultScreen({
   onGallery: () => void;
   onRestart: () => void;
 }) {
-  const textOnSwatch = shade.bValue > 55 ? "#222" : "#f2f0eb";
+  const textOnSwatch = shade.bValue > 55 ? "#222" : "#f2efee";
   // Split analysis into two paragraphs — first ~2 sentences, rest second.
   const paragraphs = useMemo(() => splitAnalysis(analysis), [analysis]);
 
@@ -781,9 +779,9 @@ function GalleryScreen({
       className="relative min-h-screen w-full overflow-hidden"
       style={{ backgroundColor: BG, color: INK }}
     >
-      {/* fluid title hovering in center */}
+      {/* split-wave logo hovering in center */}
       <div className="pointer-events-none absolute inset-x-0 top-[28%] z-[1] flex justify-center">
-        <FluidText text="BalancE" size="clamp(100px, 18vw, 280px)" tone="ghost" />
+        <SplitWaveLogo size="clamp(100px, 18vw, 280px)" />
       </div>
 
       {/* top bar */}
@@ -933,7 +931,7 @@ function FallingCard({ layout, onOpen }: { layout: CardLayout; onOpen: () => voi
 }
 
 function ResultCardDetail({ result }: { result: SavedResult }) {
-  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2f0eb";
+  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2efee";
   const paragraphs = splitAnalysis(result.analysis);
   return (
     <div>
@@ -972,64 +970,52 @@ function ResultCardDetail({ result }: { result: SavedResult }) {
   );
 }
 
-/* ---------------- fluid text ---------------- */
+/* ---------------- split wave logo ---------------- */
 
-function FluidFilterDefs() {
+function SplitWaveLogo({ size = "clamp(80px, 14vw, 220px)" }: { size?: string }) {
+  const id = "wave-clip";
   return (
     <svg
-      width="0"
-      height="0"
-      style={{ position: "absolute", width: 0, height: 0 }}
-      aria-hidden
+      viewBox="0 0 520 90"
+      preserveAspectRatio="xMidYMid meet"
+      className="select-none"
+      style={{ width: size, height: "auto", display: "block" }}
     >
       <defs>
-        <filter id="balance-fluid" x="-20%" y="-20%" width="140%" height="140%">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.012 0.022"
-            numOctaves="2"
-            seed="3"
-            result="noise"
-          >
-            <animate
-              attributeName="baseFrequency"
-              dur="14s"
-              values="0.010 0.018; 0.020 0.030; 0.010 0.018"
-              repeatCount="indefinite"
-            />
-          </feTurbulence>
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="22" />
-        </filter>
+        <clipPath id={id}>
+          <path d="M-30,-15 L550,-15 L550,42 C460,58 370,26 280,42 C190,58 100,26 10,42 L-30,42 Z" />
+        </clipPath>
       </defs>
+      <text
+        x="260"
+        y="64"
+        textAnchor="middle"
+        style={{
+          fontFamily: "Inter, sans-serif",
+          fontWeight: 900,
+          fontSize: 68,
+          letterSpacing: "-0.045em",
+        }}
+        fill="#0b0b0b"
+      >
+        BalancE
+      </text>
+      <text
+        x="260"
+        y="64"
+        textAnchor="middle"
+        clipPath={`url(#${id})`}
+        style={{
+          fontFamily: "Inter, sans-serif",
+          fontWeight: 900,
+          fontSize: 68,
+          letterSpacing: "-0.045em",
+        }}
+        fill="#cccccc"
+      >
+        BalancE
+      </text>
     </svg>
-  );
-}
-
-function FluidText({
-  text,
-  size,
-  tone = "ink",
-}: {
-  text: string;
-  size: string;
-  tone?: "ink" | "ghost";
-}) {
-  const color = tone === "ghost" ? "rgba(11,11,11,0.10)" : INK;
-  return (
-    <div
-      className="select-none leading-none"
-      style={{
-        fontFamily: "Inter, sans-serif",
-        fontWeight: 900,
-        fontSize: size,
-        letterSpacing: "-0.045em",
-        color,
-        filter: "url(#balance-fluid)",
-        willChange: "filter",
-      }}
-    >
-      {text}
-    </div>
   );
 }
 
