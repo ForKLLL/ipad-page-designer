@@ -854,6 +854,7 @@ function mulberry32(a: number) {
 
 function FallingCard({ layout, onOpen }: { layout: CardLayout; onOpen: () => void }) {
   const { leftPct, topPct, rotate, delay, result } = layout;
+  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2efee";
   return (
     <button
       onClick={onOpen}
@@ -861,7 +862,7 @@ function FallingCard({ layout, onOpen }: { layout: CardLayout; onOpen: () => voi
       style={{
         left: `${leftPct}%`,
         top: `${topPct}%`,
-        width: "clamp(140px, 14vw, 220px)",
+        width: "clamp(260px, 26vw, 360px)",
         transform: `rotate(${rotate}deg)`,
         animation: `cardDrop 1.1s cubic-bezier(.22,1,.36,1) both`,
         animationDelay: `${delay}s`,
@@ -869,36 +870,60 @@ function FallingCard({ layout, onOpen }: { layout: CardLayout; onOpen: () => voi
       }}
     >
       <div
-        className="relative"
+        className="relative flex flex-col"
         style={{
           backgroundColor: "#fafaf6",
-          boxShadow: "0 18px 28px -16px rgba(0,0,0,0.35), 0 4px 8px -4px rgba(0,0,0,0.15)",
-          padding: "14px",
-          aspectRatio: "3 / 4",
+          boxShadow: "0 22px 36px -18px rgba(0,0,0,0.4), 0 6px 12px -6px rgba(0,0,0,0.18)",
+          padding: "18px",
+          gap: 12,
         }}
       >
         <div
+          className="relative"
           style={{
             backgroundColor: result.hex,
             width: "100%",
             aspectRatio: "1 / 1",
             border: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
           }}
-        />
-        <div
-          className="mt-2 text-[10px] opacity-70"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
-          {result.hex}
+          <div
+            className="absolute bottom-2 left-2 text-[11px]"
+            style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
+          >
+            {result.hex}
+          </div>
         </div>
-        <div className="text-[13px]" style={{ fontWeight: 700 }}>
-          {result.shade_name}
+
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="text-[20px] leading-none" style={{ fontWeight: 800 }}>
+            {result.shade_name}
+          </div>
+          <div
+            className="text-[10px] opacity-60"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            b={result.b_value}
+          </div>
         </div>
-        <div
-          className="mt-auto pt-2 text-[11px]"
-          style={{ fontFamily: "Inter, sans-serif", fontWeight: 900, letterSpacing: "-0.02em" }}
+
+        <p
+          className="text-[11.5px] leading-[1.75]"
+          style={{ fontFamily: "'Noto Serif TC', serif", color: "#1a1a1a" }}
         >
-          BalancE
+          {result.analysis}
+        </p>
+
+        <div
+          className="mt-1 border-t pt-2 text-[10px] opacity-80"
+          style={{
+            borderColor: "#0b0b0b22",
+            fontFamily: "Inter, sans-serif",
+            fontWeight: 900,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          BalancE — tap to enlarge
         </div>
       </div>
       <style>{`
