@@ -798,7 +798,7 @@ function GalleryScreen({
 
       {/* full cards grid */}
       <div className="relative z-10 mx-auto max-w-[1180px] px-6 pb-20">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+        <div className="flex flex-col gap-20">
           {cards.map((c, i) => (
             <FullResultCard key={c.id} result={c.result} index={i} />
           ))}
