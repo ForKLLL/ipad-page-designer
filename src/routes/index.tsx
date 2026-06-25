@@ -716,10 +716,6 @@ function ErrorScreen({
 
 type CardLayout = {
   id: string;
-  leftPct: number;
-  topPct: number;
-  rotate: number;
-  delay: number;
   result: SavedResult;
 };
 
@@ -731,22 +727,20 @@ function GalleryScreen({
 }) {
   const [cards, setCards] = useState<CardLayout[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [openId, setOpenId] = useState<string | null>(null);
   const seenIds = useRef<Set<string>>(new Set());
 
-  // initial load + realtime subscription
   useEffect(() => {
     let mounted = true;
     (async () => {
       const { data } = await supabase
         .from("results")
         .select("id, b_value, shade_name, hex, analysis")
-        .order("created_at", { ascending: true })
+        .order("created_at", { ascending: false })
         .limit(120);
       if (!mounted) return;
-      const layouts = (data ?? []).map((r, i) => {
+      const layouts = (data ?? []).map((r) => {
         seenIds.current.add(r.id);
-        return makeLayout(r as SavedResult, i * 0.12);
+        return { id: r.id, result: r as SavedResult };
       });
       setCards(layouts);
       setLoaded(true);
@@ -761,7 +755,7 @@ function GalleryScreen({
           const r = payload.new as SavedResult;
           if (seenIds.current.has(r.id)) return;
           seenIds.current.add(r.id);
-          setCards((prev) => [...prev, makeLayout(r, 0)]);
+          setCards((prev) => [{ id: r.id, result: r }, ...prev]);
         },
       )
       .subscribe();
@@ -772,18 +766,11 @@ function GalleryScreen({
     };
   }, []);
 
-  const opened = openId ? cards.find((c) => c.id === openId) : null;
-
   return (
     <div
-      className="relative min-h-screen w-full overflow-hidden"
+      className="relative min-h-screen w-full"
       style={{ backgroundColor: BG, color: INK }}
     >
-      {/* split-wave logo hovering in center */}
-      <div className="pointer-events-none absolute inset-x-0 top-[28%] z-[1] flex justify-center">
-        <SplitWaveLogo size="clamp(100px, 18vw, 280px)" />
-      </div>
-
       {/* top bar */}
       <div className="relative z-30 flex items-center justify-between px-8 py-6">
         <button
@@ -804,168 +791,93 @@ function GalleryScreen({
         </div>
       </div>
 
-      {/* fallen cards */}
-      <div className="absolute inset-0 z-10">
-        {cards.map((c) => (
-          <FallingCard key={c.id} layout={c} onOpen={() => setOpenId(c.id)} />
-        ))}
+      {/* split-wave logo */}
+      <div className="pointer-events-none relative z-[1] flex justify-center pb-8">
+        <SplitWaveLogo size="clamp(80px, 14vw, 200px)" />
       </div>
 
-      {/* modal */}
-      {opened && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center px-6 py-10"
-          style={{ backgroundColor: "rgba(11,11,11,0.55)" }}
-          onClick={() => setOpenId(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-[760px] overflow-y-auto"
-            style={{
-              backgroundColor: BG,
-              padding: "44px 48px",
-              maxHeight: "85vh",
-              boxShadow: "0 30px 80px -20px rgba(0,0,0,0.4)",
-            }}
-          >
-            <button
-              onClick={() => setOpenId(null)}
-              className="absolute right-5 top-4 text-[20px] opacity-60 hover:opacity-100"
-              aria-label="Close"
-            >
-              ×
-            </button>
-            <ResultCardDetail result={opened.result} />
-          </div>
+      {/* full cards grid */}
+      <div className="relative z-10 mx-auto max-w-[1180px] px-6 pb-20">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+          {cards.map((c, i) => (
+            <FullResultCard key={c.id} result={c.result} index={i} />
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-function makeLayout(r: SavedResult, delay: number): CardLayout {
-  // deterministic pseudo-random from id
-  const seed = hashStr(r.id);
-  const rand = mulberry32(seed);
-  const leftPct = 6 + rand() * 78; // 6%..84%
-  const topPct = 18 + rand() * 60; // 18%..78%
-  const rotate = (rand() - 0.5) * 36; // -18..18 deg
-  return { id: r.id, leftPct, topPct, rotate, delay, result: r };
-}
+function FullResultCard({ result, index }: { result: SavedResult; index: number }) {
+  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2efee";
+  const paragraphs = splitAnalysis(result.analysis);
 
-function hashStr(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-function mulberry32(a: number) {
-  return function () {
-    let t = (a += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function FallingCard({ layout, onOpen }: { layout: CardLayout; onOpen: () => void }) {
-  const { leftPct, topPct, rotate, delay, result } = layout;
   return (
-    <button
-      onClick={onOpen}
-      className="absolute z-20 cursor-pointer text-left"
+    <div
+      className="relative overflow-hidden text-left"
       style={{
-        left: `${leftPct}%`,
-        top: `${topPct}%`,
-        width: "clamp(140px, 14vw, 220px)",
-        transform: `rotate(${rotate}deg)`,
-        animation: `cardDrop 1.1s cubic-bezier(.22,1,.36,1) both`,
-        animationDelay: `${delay}s`,
-        transformOrigin: "center",
+        backgroundColor: "#fafaf6",
+        boxShadow: "0 18px 28px -16px rgba(0,0,0,0.25), 0 4px 8px -4px rgba(0,0,0,0.10)",
+        animation: `cardFadeIn 0.8s cubic-bezier(.22,1,.36,1) both`,
+        animationDelay: `${Math.min(index * 0.08, 1.5)}s`,
       }}
     >
+      {/* color strip */}
       <div
         className="relative"
         style={{
-          backgroundColor: "#fafaf6",
-          boxShadow: "0 18px 28px -16px rgba(0,0,0,0.35), 0 4px 8px -4px rgba(0,0,0,0.15)",
-          padding: "14px",
-          aspectRatio: "3 / 4",
+          backgroundColor: result.hex,
+          height: 120,
+          borderBottom: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
         }}
       >
         <div
-          style={{
-            backgroundColor: result.hex,
-            width: "100%",
-            aspectRatio: "1 / 1",
-            border: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
-          }}
-        />
-        <div
-          className="mt-2 text-[10px] opacity-70"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          className="absolute bottom-3 left-4 text-[12px]"
+          style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
         >
-          {result.hex}
+          {result.hex} · B{result.b_value}
         </div>
-        <div className="text-[13px]" style={{ fontWeight: 700 }}>
+      </div>
+
+      <div className="p-6">
+        <h3
+          className="text-[22px] leading-none"
+          style={{ fontWeight: 700, fontFamily: "'Noto Serif TC', serif" }}
+        >
           {result.shade_name}
+        </h3>
+
+        <div className="mt-4 space-y-3">
+          <p
+            className="whitespace-pre-line text-[14px] leading-[2]"
+            style={{ fontFamily: "'Noto Serif TC', serif" }}
+          >
+            {paragraphs[0]}
+          </p>
+          {paragraphs[1] && (
+            <p
+              className="whitespace-pre-line text-[14px] leading-[2]"
+              style={{ fontFamily: "'Noto Serif TC', serif" }}
+            >
+              {paragraphs[1]}
+            </p>
+          )}
         </div>
+
         <div
-          className="mt-auto pt-2 text-[11px]"
-          style={{ fontFamily: "Inter, sans-serif", fontWeight: 900, letterSpacing: "-0.02em" }}
+          className="mt-5 text-[11px] opacity-40"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           BalancE
         </div>
       </div>
+
       <style>{`
-        @keyframes cardDrop {
-          0% { transform: translateY(-120vh) rotate(${rotate - 40}deg); opacity: 0; }
-          70% { opacity: 1; }
-          100% { transform: translateY(0) rotate(${rotate}deg); opacity: 1; }
+        @keyframes cardFadeIn {
+          0% { opacity: 0; transform: translateY(30px); }
+          100% { opacity: 1; transform: translateY(0); }
         }
       `}</style>
-    </button>
-  );
-}
-
-function ResultCardDetail({ result }: { result: SavedResult }) {
-  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2efee";
-  const paragraphs = splitAnalysis(result.analysis);
-  return (
-    <div>
-      <h2 className="text-[24px]" style={{ fontWeight: 700 }}>
-        分析結果
-      </h2>
-      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-[180px_1fr]">
-        <div
-          className="relative"
-          style={{
-            backgroundColor: result.hex,
-            aspectRatio: "1 / 1",
-            border: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
-          }}
-        >
-          <div
-            className="absolute bottom-2 left-2 text-[13px]"
-            style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
-          >
-            {result.hex}
-          </div>
-        </div>
-        <div className="text-right">
-          <h3 className="text-[30px] leading-none" style={{ fontWeight: 700 }}>
-            {result.shade_name}
-          </h3>
-          <p className="mt-4 whitespace-pre-line text-[14px] leading-[2]">{paragraphs[0]}</p>
-        </div>
-      </div>
-      {paragraphs[1] && (
-        <p className="mt-6 whitespace-pre-line text-center text-[14px] leading-[2]">
-          {paragraphs[1]}
-        </p>
-      )}
     </div>
   );
 }
