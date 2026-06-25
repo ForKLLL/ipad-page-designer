@@ -614,9 +614,9 @@ function ResultScreen({
         </div>
       </div>
 
-      <div className="mt-12">
+      <div className="mt-20">
         <p
-          className="mx-auto max-w-[760px] whitespace-pre-line text-center text-[16px] leading-[2.2]"
+          className="whitespace-pre-line text-right text-[16px] leading-[2.4]"
           style={{ fontFamily: "'Noto Serif TC', serif" }}
         >
           {paragraphs[1]}
