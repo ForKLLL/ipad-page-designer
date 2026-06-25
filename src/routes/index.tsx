@@ -814,63 +814,58 @@ function FullResultCard({ result, index }: { result: SavedResult; index: number 
 
   return (
     <div
-      className="relative overflow-hidden text-left"
+      className="flex flex-col"
       style={{
-        backgroundColor: "#fafaf6",
-        boxShadow: "0 18px 28px -16px rgba(0,0,0,0.25), 0 4px 8px -4px rgba(0,0,0,0.10)",
         animation: `cardFadeIn 0.8s cubic-bezier(.22,1,.36,1) both`,
         animationDelay: `${Math.min(index * 0.08, 1.5)}s`,
       }}
     >
-      {/* color strip */}
-      <div
-        className="relative"
-        style={{
-          backgroundColor: result.hex,
-          height: 120,
-          borderBottom: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
-        }}
-      >
+      {/* Top row: color block left, title + paragraph 1 right */}
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div
-          className="absolute bottom-3 left-4 text-[12px]"
-          style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
+          className="relative w-full"
+          style={{
+            aspectRatio: "1 / 1",
+            backgroundColor: result.hex,
+            maxWidth: 440,
+            border: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
+          }}
         >
-          {result.hex} · B{result.b_value}
+          <div
+            className="absolute bottom-4 left-5 text-[18px]"
+            style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
+          >
+            {result.hex}
+          </div>
         </div>
-      </div>
 
-      <div className="p-6">
-        <h3
-          className="text-[22px] leading-none"
-          style={{ fontWeight: 700, fontFamily: "'Noto Serif TC', serif" }}
-        >
-          {result.shade_name}
-        </h3>
-
-        <div className="mt-4 space-y-3">
+        <div className="text-right">
+          <h3
+            className="text-[36px] leading-none sm:text-[44px]"
+            style={{ fontWeight: 700, fontFamily: "'Noto Serif TC', serif" }}
+          >
+            {result.shade_name}
+          </h3>
           <p
-            className="whitespace-pre-line text-[14px] leading-[2]"
+            className="mt-6 whitespace-pre-line text-[15px] leading-[2.4] sm:text-[16px]"
             style={{ fontFamily: "'Noto Serif TC', serif" }}
           >
             {paragraphs[0]}
           </p>
-          {paragraphs[1] && (
-            <p
-              className="whitespace-pre-line text-[14px] leading-[2]"
-              style={{ fontFamily: "'Noto Serif TC', serif" }}
-            >
-              {paragraphs[1]}
-            </p>
-          )}
-        </div>
-
-        <div
-          className="mt-5 text-[11px] opacity-40"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          BalancE
         </div>
       </div>
+
+      {/* Second paragraph */}
+      {paragraphs[1] && (
+        <div className="mt-20">
+          <p
+            className="whitespace-pre-line text-right text-[15px] leading-[2.4] sm:text-[16px]"
+            style={{ fontFamily: "'Noto Serif TC', serif" }}
+          >
+            {paragraphs[1]}
+          </p>
+        </div>
+      )}
 
       <style>{`
         @keyframes cardFadeIn {
