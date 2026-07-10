@@ -133,8 +133,10 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
   const upload = useServerFn(uploadReference);
   const toggle = useServerFn(toggleReference);
   const remove = useServerFn(deleteReference);
+  const fetchContent = useServerFn(getReferenceContent);
 
   const [docs, setDocs] = useState<Doc[] | null>(null);
+  const [previews, setPreviews] = useState<Record<string, string | "loading">>({});
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [status, setStatus] = useState<string>("");
@@ -143,6 +145,18 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
   const refresh = async () => {
     const r = await list();
     setDocs(r.documents as Doc[]);
+    setPreviews({});
+  };
+
+  const loadPreview = async (id: string) => {
+    if (previews[id] !== undefined) return;
+    setPreviews((p) => ({ ...p, [id]: "loading" }));
+    try {
+      const r = await fetchContent({ data: { id } });
+      setPreviews((p) => ({ ...p, [id]: r.content }));
+    } catch (e: any) {
+      setPreviews((p) => ({ ...p, [id]: `Failed to load: ${e?.message ?? e}` }));
+    }
   };
 
   useEffect(() => {
