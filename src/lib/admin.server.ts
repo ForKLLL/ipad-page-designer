@@ -13,7 +13,9 @@ export function getAdminSessionConfig() {
     cookie: {
       httpOnly: true,
       secure: true,
-      sameSite: "lax" as const,
+      // "none" so the session cookie is sent when the app is embedded in
+      // the Lovable preview iframe (cross-site context). Requires Secure.
+      sameSite: "none" as const,
       path: "/",
     },
   };
