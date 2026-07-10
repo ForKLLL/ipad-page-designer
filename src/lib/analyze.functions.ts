@@ -69,6 +69,43 @@ function buildUserPrompt(input: z.infer<typeof InputSchema>): string {
   return lines.join("\n");
 }
 
+async function loadReferenceBlock(): Promise<string> {
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) return "";
+    const sb = createClient(url, key, {
+      auth: {
+        storage: undefined,
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+    const { data, error } = await sb
+      .from("reference_documents")
+      .select("title, content")
+      .eq("is_active", true)
+      .order("created_at", { ascending: true });
+    if (error || !data || data.length === 0) return "";
+    const MAX = 40_000;
+    const parts: string[] = [];
+    let used = 0;
+    for (const d of data) {
+      const chunk = `--- ${d.title} ---\n${d.content}\n`;
+      if (used + chunk.length > MAX) {
+        parts.push(chunk.slice(0, MAX - used));
+        break;
+      }
+      parts.push(chunk);
+      used += chunk.length;
+    }
+    return `\n\n【參考資料 Reference Material】(請以下列資料為分析依據，不得與其內容矛盾。)\n${parts.join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
 export const analyzeBalance = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => InputSchema.parse(data))
   .handler(async ({ data }) => {
@@ -76,6 +113,9 @@ export const analyzeBalance = createServerFn({ method: "POST" })
     if (!apiKey) {
       throw new Error("Missing LOVABLE_API_KEY");
     }
+
+    const referenceBlock = await loadReferenceBlock();
+    const systemContent = SYSTEM_PROMPT + referenceBlock;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -86,7 +126,7 @@ export const analyzeBalance = createServerFn({ method: "POST" })
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: systemContent },
           { role: "user", content: buildUserPrompt(data) },
         ],
       }),
