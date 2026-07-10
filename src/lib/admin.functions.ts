@@ -65,6 +65,19 @@ export const adminLogout = createServerFn({ method: "POST" }).handler(
   },
 );
 
+export const adminResetSession = createServerFn({ method: "POST" }).handler(
+  async () => {
+    try {
+      const session = await useSession<AdminSession>(sessionConfig());
+      await session.clear();
+    } catch {
+      // If the cookie can't be decrypted, importing the session module already
+      // rewrites the Set-Cookie header to clear it — swallow and succeed.
+    }
+    return { ok: true as const };
+  },
+);
+
 export const listReferences = createServerFn({ method: "GET" }).handler(
   async () => {
     await requireAdmin();
