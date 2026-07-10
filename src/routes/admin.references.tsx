@@ -280,8 +280,7 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
                   <div className="min-w-0">
                     <div className="font-medium truncate">{d.title}</div>
                     <div className="text-xs text-black/60">
-                      {d.content.length.toLocaleString()} chars · added{" "}
-                      {new Date(d.created_at).toLocaleString()}
+                      added {new Date(d.created_at).toLocaleString()}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
@@ -310,11 +309,20 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
                     </button>
                   </div>
                 </div>
-                <details className="text-xs text-black/70">
+                <details
+                  className="text-xs text-black/70"
+                  onToggle={(e) => {
+                    if ((e.target as HTMLDetailsElement).open) loadPreview(d.id);
+                  }}
+                >
                   <summary className="cursor-pointer">Preview</summary>
                   <pre className="whitespace-pre-wrap font-mono mt-2 max-h-64 overflow-auto">
-                    {d.content.slice(0, 2000)}
-                    {d.content.length > 2000 ? "\n…" : ""}
+                    {previews[d.id] === undefined
+                      ? ""
+                      : previews[d.id] === "loading"
+                        ? "Loading…"
+                        : (previews[d.id] as string).slice(0, 2000) +
+                          ((previews[d.id] as string).length > 2000 ? "\n…" : "")}
                   </pre>
                 </details>
               </li>
