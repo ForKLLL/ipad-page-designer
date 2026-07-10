@@ -6,6 +6,7 @@ import {
   adminLogout,
   adminStatus,
   deleteReference,
+  getReferenceContent,
   listReferences,
   toggleReference,
   uploadReference,
@@ -24,7 +25,6 @@ export const Route = createFileRoute("/admin/references")({
 type Doc = {
   id: string;
   title: string;
-  content: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -133,8 +133,10 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
   const upload = useServerFn(uploadReference);
   const toggle = useServerFn(toggleReference);
   const remove = useServerFn(deleteReference);
+  const fetchContent = useServerFn(getReferenceContent);
 
   const [docs, setDocs] = useState<Doc[] | null>(null);
+  const [previews, setPreviews] = useState<Record<string, string | "loading">>({});
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [status, setStatus] = useState<string>("");
@@ -143,6 +145,18 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
   const refresh = async () => {
     const r = await list();
     setDocs(r.documents as Doc[]);
+    setPreviews({});
+  };
+
+  const loadPreview = async (id: string) => {
+    if (previews[id] !== undefined) return;
+    setPreviews((p) => ({ ...p, [id]: "loading" }));
+    try {
+      const r = await fetchContent({ data: { id } });
+      setPreviews((p) => ({ ...p, [id]: r.content }));
+    } catch (e: any) {
+      setPreviews((p) => ({ ...p, [id]: `Failed to load: ${e?.message ?? e}` }));
+    }
   };
 
   useEffect(() => {
@@ -266,8 +280,7 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
                   <div className="min-w-0">
                     <div className="font-medium truncate">{d.title}</div>
                     <div className="text-xs text-black/60">
-                      {d.content.length.toLocaleString()} chars · added{" "}
-                      {new Date(d.created_at).toLocaleString()}
+                      added {new Date(d.created_at).toLocaleString()}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
@@ -296,11 +309,20 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
                     </button>
                   </div>
                 </div>
-                <details className="text-xs text-black/70">
+                <details
+                  className="text-xs text-black/70"
+                  onToggle={(e) => {
+                    if ((e.target as HTMLDetailsElement).open) loadPreview(d.id);
+                  }}
+                >
                   <summary className="cursor-pointer">Preview</summary>
                   <pre className="whitespace-pre-wrap font-mono mt-2 max-h-64 overflow-auto">
-                    {d.content.slice(0, 2000)}
-                    {d.content.length > 2000 ? "\n…" : ""}
+                    {previews[d.id] === undefined
+                      ? ""
+                      : previews[d.id] === "loading"
+                        ? "Loading…"
+                        : (previews[d.id] as string).slice(0, 2000) +
+                          ((previews[d.id] as string).length > 2000 ? "\n…" : "")}
                   </pre>
                 </details>
               </li>
