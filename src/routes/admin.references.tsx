@@ -136,19 +136,20 @@ function AdminReferences() {
     setUnlocked(null);
     setInitialDocs(null);
     try {
-      const [statusRes, listRes] = await withTimeout(
-        Promise.allSettled([status(), list()]),
+      const statusRes = await withTimeout(
+        status(),
         MOUNT_TIMEOUT_MS,
         "Admin gate",
       );
-
-      if (statusRes.status !== "fulfilled") {
-        throw statusRes.reason;
-      }
-      const isUnlocked = statusRes.value.unlocked;
+      const isUnlocked = statusRes.unlocked;
       setUnlocked(isUnlocked);
-      if (isUnlocked && listRes.status === "fulfilled") {
-        setInitialDocs(listRes.value.documents as Doc[]);
+      if (isUnlocked) {
+        const listRes = await withTimeout(
+          list(),
+          MOUNT_TIMEOUT_MS,
+          "Documents list",
+        );
+        setInitialDocs(listRes.documents as Doc[]);
       }
     } catch (e) {
       setError(errMsg(e));
@@ -184,9 +185,13 @@ function AdminReferences() {
     return (
       <LoginForm
         onLogin={async (password) => {
-          const r = await login({ data: { password } });
-          if (r.ok) setNonce((n) => n + 1);
-          return r.ok;
+          try {
+            const r = await login({ data: { password } });
+            if (r.ok) setNonce((n) => n + 1);
+            return { ok: r.ok };
+          } catch (e) {
+            return { ok: false, message: errMsg(e) };
+          }
         }}
       />
     );
@@ -203,9 +208,13 @@ function AdminReferences() {
   );
 }
 
-function LoginForm({ onLogin }: { onLogin: (p: string) => Promise<boolean> }) {
+function LoginForm({
+  onLogin,
+}: {
+  onLogin: (p: string) => Promise<{ ok: boolean; message?: string }>;
+}) {
   const [pw, setPw] = useState("");
-  const [err, setErr] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   return (
     <div className="min-h-screen bg-[#f2efee] flex items-center justify-center text-black p-6">
@@ -213,10 +222,17 @@ function LoginForm({ onLogin }: { onLogin: (p: string) => Promise<boolean> }) {
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
-          setErr(false);
-          const ok = await onLogin(pw);
-          setBusy(false);
-          if (!ok) setErr(true);
+          setErr(null);
+          try {
+            const result = await onLogin(pw);
+            if (!result.ok) {
+              setErr(result.message ?? "Incorrect password.");
+            }
+          } catch (e) {
+            setErr(errMsg(e));
+          } finally {
+            setBusy(false);
+          }
         }}
         className="w-full max-w-sm space-y-4"
       >
@@ -229,7 +245,7 @@ function LoginForm({ onLogin }: { onLogin: (p: string) => Promise<boolean> }) {
           className="w-full border border-black/40 bg-transparent px-3 py-2"
           autoFocus
         />
-        {err && <p className="text-sm text-red-700">Incorrect password.</p>}
+        {err && <p className="text-sm text-red-700 break-words">{err}</p>}
         <button
           type="submit"
           disabled={busy || !pw}

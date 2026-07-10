@@ -1,39 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { useSession } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { createHash, timingSafeEqual } from "node:crypto";
-
-type AdminSession = { unlocked?: boolean };
-
-function sessionConfig() {
-  const password = process.env.ADMIN_SESSION_SECRET;
-  if (!password) throw new Error("ADMIN_SESSION_SECRET is not set");
-  return {
-    password,
-    name: "admin-gate",
-    maxAge: 60 * 60 * 24 * 7,
-    cookie: {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax" as const,
-      path: "/",
-    },
-  };
-}
-
-function passwordMatches(input: string, expected: string): boolean {
-  const a = createHash("sha256").update(input, "utf8").digest();
-  const b = createHash("sha256").update(expected, "utf8").digest();
-  return timingSafeEqual(a, b);
-}
-
-async function requireAdmin() {
-  const session = await useSession<AdminSession>(sessionConfig());
-  if (!session.data.unlocked) {
-    throw new Error("Unauthorized");
-  }
-  return session;
-}
+import {
+  adminPasswordMatches,
+  getAdminSession,
+  requireAdminSession,
+} from "./admin.server";
 
 export const adminLogin = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
@@ -42,24 +13,24 @@ export const adminLogin = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const expected = process.env.ADMIN_PASSWORD;
     if (!expected) throw new Error("ADMIN_PASSWORD is not set");
-    if (!passwordMatches(data.password, expected)) {
+    if (!adminPasswordMatches(data.password, expected)) {
       return { ok: false as const };
     }
-    const session = await useSession<AdminSession>(sessionConfig());
+    const session = await getAdminSession();
     await session.update({ unlocked: true });
     return { ok: true as const };
   });
 
 export const adminStatus = createServerFn({ method: "GET" }).handler(
   async () => {
-    const session = await useSession<AdminSession>(sessionConfig());
+    const session = await getAdminSession();
     return { unlocked: !!session.data.unlocked };
   },
 );
 
 export const adminLogout = createServerFn({ method: "POST" }).handler(
   async () => {
-    const session = await useSession<AdminSession>(sessionConfig());
+    const session = await getAdminSession();
     await session.clear();
     return { ok: true as const };
   },
@@ -68,7 +39,7 @@ export const adminLogout = createServerFn({ method: "POST" }).handler(
 export const adminResetSession = createServerFn({ method: "POST" }).handler(
   async () => {
     try {
-      const session = await useSession<AdminSession>(sessionConfig());
+      const session = await getAdminSession();
       await session.clear();
     } catch {
       // If the cookie can't be decrypted, importing the session module already
@@ -80,7 +51,7 @@ export const adminResetSession = createServerFn({ method: "POST" }).handler(
 
 export const listReferences = createServerFn({ method: "GET" }).handler(
   async () => {
-    await requireAdmin();
+    await requireAdminSession();
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
     );
@@ -98,7 +69,7 @@ export const getReferenceContent = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid() }).parse(data),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
+    await requireAdminSession();
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
     );
@@ -121,7 +92,7 @@ export const uploadReference = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
+    await requireAdminSession();
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
     );
@@ -137,7 +108,7 @@ export const toggleReference = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), is_active: z.boolean() }).parse(data),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
+    await requireAdminSession();
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
     );
@@ -154,7 +125,7 @@ export const deleteReference = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid() }).parse(data),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
+    await requireAdminSession();
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
     );
