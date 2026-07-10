@@ -31,7 +31,7 @@ type Doc = {
 };
 
 async function extractPdfText(file: File): Promise<string> {
-  const pdfjs: any = await import(/* @vite-ignore */ "pdfjs-dist/build/pdf.mjs" as string);
+  const pdfjs: any = await import("pdfjs-dist/build/pdf.mjs");
   // Use a fake worker in-thread to avoid worker setup
   pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     "pdfjs-dist/build/pdf.worker.mjs",
