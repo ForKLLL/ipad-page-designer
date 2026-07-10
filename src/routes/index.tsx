@@ -143,7 +143,7 @@ const SHADES: Shade[] = [
   { bValue: 0, hex: "#000000", name: "純黑", tagline: "厚重、內斂" },
   { bValue: 10, hex: "#1A1A1A", name: "極深灰", tagline: "沉穩、韌性" },
   { bValue: 20, hex: "#333333", name: "暗灰", tagline: "誠懇、克制" },
-  { bValue: 30, hex: "#3A4145", name: "中暗灰", tagline: "堅忍、務實" },
+  { bValue: 30, hex: "#4D4D4D", name: "中暗灰", tagline: "堅忍、務實" },
   { bValue: 40, hex: "#666666", name: "中灰", tagline: "穩健、緩衝" },
   { bValue: 50, hex: "#808080", name: "標準灰", tagline: "平和、中立" },
   { bValue: 60, hex: "#999999", name: "中淺灰", tagline: "從容、接納" },
