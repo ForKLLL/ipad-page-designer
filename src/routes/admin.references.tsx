@@ -6,6 +6,7 @@ import {
   adminLogout,
   adminStatus,
   deleteReference,
+  getReferenceContent,
   listReferences,
   toggleReference,
   uploadReference,
@@ -24,7 +25,6 @@ export const Route = createFileRoute("/admin/references")({
 type Doc = {
   id: string;
   title: string;
-  content: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
