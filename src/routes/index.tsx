@@ -719,6 +719,91 @@ type CardLayout = {
   result: SavedResult;
 };
 
+const CARD_W = 210;
+const CARD_H = 290;
+const GAP_X = 44;
+const GAP_Y = 56;
+const EDGE_PAD = 32;
+
+// Reserved rectangle (in cells) at the top-center for the huge logo.
+const LOGO_ROWS = 2;
+const LOGO_COLS_HINT = 3;
+
+function hashId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+type Placed = {
+  id: string;
+  x: number;
+  y: number;
+  rot: number;
+  delay: number;
+  spinFrom: number;
+  result: SavedResult;
+};
+
+function computePlacements(cards: CardLayout[], viewportW: number) {
+  const usableW = Math.max(viewportW, CARD_W + EDGE_PAD * 2);
+  const colsCount = Math.max(
+    3,
+    Math.floor((usableW - EDGE_PAD * 2 + GAP_X) / (CARD_W + GAP_X)),
+  );
+  const logoCols = Math.min(LOGO_COLS_HINT, Math.max(1, colsCount - 2));
+  const centerColStart = Math.floor((colsCount - logoCols) / 2);
+  const centerColEnd = centerColStart + logoCols - 1;
+
+  const slots: { row: number; col: number }[] = [];
+  let row = 0;
+  while (slots.length < cards.length) {
+    for (let col = 0; col < colsCount; col++) {
+      const inLogoZone =
+        row < LOGO_ROWS && col >= centerColStart && col <= centerColEnd;
+      if (inLogoZone) continue;
+      slots.push({ row, col });
+      if (slots.length >= cards.length) break;
+    }
+    row++;
+    if (row > 400) break;
+  }
+
+  const rowsUsed = slots.length ? slots[slots.length - 1].row + 1 : LOGO_ROWS;
+  const totalRows = Math.max(rowsUsed, LOGO_ROWS + 1);
+  const gridWidth = colsCount * CARD_W + (colsCount - 1) * GAP_X;
+  const offsetX = Math.max(EDGE_PAD, (usableW - gridWidth) / 2);
+  const height = totalRows * CARD_H + (totalRows - 1) * GAP_Y + EDGE_PAD * 2;
+
+  const placements: Placed[] = cards.map((c, i) => {
+    const slot = slots[i] ?? { row: 0, col: 0 };
+    const seed = hashId(c.id || String(i));
+    const jitterRange = 26;
+    const jitterX = (seed % (jitterRange * 2)) - jitterRange;
+    const jitterY = (((seed >> 5) % (jitterRange * 2)) - jitterRange) * 0.7;
+    const rot = ((seed >> 9) % 36) - 18;
+    const spinFrom = ((seed >> 13) % 90) * (seed & 1 ? -1 : 1) - 60;
+    const delay = Math.min(i * 0.09, 2.4);
+    const x = offsetX + slot.col * (CARD_W + GAP_X) + jitterX;
+    const y = EDGE_PAD + slot.row * (CARD_H + GAP_Y) + jitterY;
+    return { id: c.id, x, y, rot, delay, spinFrom, result: c.result };
+  });
+
+  const logoX =
+    offsetX + centerColStart * (CARD_W + GAP_X) - GAP_X / 2;
+  const logoW =
+    logoCols * CARD_W + (logoCols - 1) * GAP_X + GAP_X;
+  const logoY = EDGE_PAD;
+  const logoH = LOGO_ROWS * CARD_H + (LOGO_ROWS - 1) * GAP_Y;
+
+  return {
+    placements,
+    height,
+    canvasWidth: Math.max(usableW, offsetX * 2 + gridWidth),
+    logo: { x: logoX, y: logoY, w: logoW, h: logoH },
+  };
+}
+
 function GalleryScreen({
   onRestart,
 }: {
@@ -728,6 +813,15 @@ function GalleryScreen({
   const [cards, setCards] = useState<CardLayout[]>([]);
   const [loaded, setLoaded] = useState(false);
   const seenIds = useRef<Set<string>>(new Set());
+  const [viewportW, setViewportW] = useState<number>(() =>
+    typeof window === "undefined" ? 1200 : window.innerWidth,
+  );
+
+  useEffect(() => {
+    const onResize = () => setViewportW(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -766,9 +860,14 @@ function GalleryScreen({
     };
   }, []);
 
+  const { placements, height, canvasWidth, logo } = useMemo(
+    () => computePlacements(cards, viewportW),
+    [cards, viewportW],
+  );
+
   return (
     <div
-      className="relative min-h-screen w-full"
+      className="relative min-h-screen w-full overflow-x-hidden"
       style={{ backgroundColor: BG, color: INK }}
     >
       {/* top bar */}
@@ -791,89 +890,174 @@ function GalleryScreen({
         </div>
       </div>
 
-      {/* split-wave logo */}
-      <div className="pointer-events-none relative z-[1] flex justify-center pb-8">
-        <SplitWaveLogo size="clamp(80px, 14vw, 200px)" />
+      {/* scatter canvas */}
+      <div
+        className="relative mx-auto"
+        style={{
+          width: canvasWidth,
+          maxWidth: "100%",
+          height,
+        }}
+      >
+        <div
+          className="pointer-events-none absolute z-[1] flex items-center justify-center"
+          style={{
+            left: logo.x,
+            top: logo.y,
+            width: logo.w,
+            height: logo.h,
+          }}
+        >
+          <SplitWaveLogo size={`${Math.min(logo.w, 720)}px`} />
+        </div>
+
+        {placements.map((p) => (
+          <ScatteredCard key={p.id} placed={p} />
+        ))}
       </div>
 
-      {/* full cards grid */}
-      <div className="relative z-10 mx-auto max-w-[1180px] px-6 pb-20">
-        <div className="flex flex-col gap-20">
-          {cards.map((c, i) => (
-            <FullResultCard key={c.id} result={c.result} index={i} />
-          ))}
-        </div>
-      </div>
+      <div className="pb-16" />
+
+      <style>{`
+        @keyframes cardFall {
+          0% {
+            opacity: 0;
+            transform: translate3d(0, -120vh, 0)
+              rotate(var(--spin-from, -40deg));
+          }
+          70% {
+            opacity: 1;
+            transform: translate3d(0, 12px, 0)
+              rotate(calc(var(--rot, 0deg) + 4deg));
+          }
+          85% {
+            transform: translate3d(0, -4px, 0)
+              rotate(calc(var(--rot, 0deg) - 1.5deg));
+          }
+          100% {
+            opacity: 1;
+            transform: translate3d(0, 0, 0)
+              rotate(var(--rot, 0deg));
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
-function FullResultCard({ result, index }: { result: SavedResult; index: number }) {
-  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2efee";
+function ScatteredCard({ placed }: { placed: Placed }) {
+  const { result, x, y, rot, delay, spinFrom } = placed;
   const paragraphs = splitAnalysis(result.analysis);
+  const snippet = (paragraphs[0] || result.analysis).slice(0, 220);
+  const textOnSwatch = result.b_value > 55 ? "#222" : "#f2efee";
 
   return (
-    <div
-      className="flex flex-col"
+    <article
+      className="absolute will-change-transform"
       style={{
-        animation: `cardFadeIn 0.8s cubic-bezier(.22,1,.36,1) both`,
-        animationDelay: `${Math.min(index * 0.08, 1.5)}s`,
+        left: x,
+        top: y,
+        width: CARD_W,
+        height: CARD_H,
+        transformOrigin: "50% 55%",
+        ["--rot" as never]: `${rot}deg`,
+        ["--spin-from" as never]: `${spinFrom}deg`,
+        animation: "cardFall 1.15s cubic-bezier(.22,1,.36,1) both",
+        animationDelay: `${delay}s`,
       }}
     >
-      {/* Top row: color block left, title + paragraph 1 right */}
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <div
-          className="relative w-full"
-          style={{
-            aspectRatio: "1 / 1",
-            backgroundColor: result.hex,
-            maxWidth: 440,
-            border: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
-          }}
-        >
+      <div
+        className="relative flex h-full w-full flex-col"
+        style={{
+          backgroundColor: "#efece9",
+          boxShadow:
+            "0 1px 0 rgba(0,0,0,0.04), 0 14px 26px -18px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.06)",
+          padding: "14px 14px 12px 14px",
+        }}
+      >
+        <div className="flex items-start gap-3">
           <div
-            className="absolute bottom-4 left-5 text-[18px]"
-            style={{ fontFamily: "'JetBrains Mono', monospace", color: textOnSwatch }}
+            className="shrink-0"
+            style={{
+              width: 46,
+              height: 46,
+              backgroundColor: result.hex,
+              border: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
+              position: "relative",
+            }}
           >
-            {result.hex}
+            <span
+              className="absolute inset-0 flex items-end justify-start pl-1 pb-0.5"
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 7,
+                letterSpacing: "0.02em",
+                color: textOnSwatch,
+              }}
+            >
+              {result.hex.toLowerCase()}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1 text-right">
+            <div
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 8,
+                letterSpacing: "0.14em",
+                opacity: 0.55,
+              }}
+            >
+              B={result.b_value}
+            </div>
+            <h4
+              className="truncate"
+              style={{
+                fontFamily: "'Noto Serif TC', serif",
+                fontWeight: 700,
+                fontSize: 14,
+                lineHeight: 1.1,
+                marginTop: 2,
+              }}
+            >
+              {result.shade_name}
+            </h4>
           </div>
         </div>
 
-        <div className="text-right">
-          <h3
-            className="text-[36px] leading-none sm:text-[44px]"
-            style={{ fontWeight: 700, fontFamily: "'Noto Serif TC', serif" }}
+        <div
+          className="my-2"
+          style={{ height: 1, backgroundColor: "rgba(0,0,0,0.12)" }}
+        />
+
+        <p
+          className="flex-1 overflow-hidden"
+          style={{
+            fontFamily: "'Noto Serif TC', serif",
+            fontSize: 7.6,
+            lineHeight: 1.55,
+            color: "rgba(11,11,11,0.78)",
+            textAlign: "justify",
+          }}
+        >
+          {snippet}
+          {snippet.length >= 220 ? "…" : ""}
+        </p>
+
+        <div className="mt-1 flex items-end justify-between">
+          <SplitWaveLogo size="78px" />
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 7,
+              letterSpacing: "0.1em",
+              opacity: 0.4,
+            }}
           >
-            {result.shade_name}
-          </h3>
-          <p
-            className="mt-6 whitespace-pre-line text-[15px] leading-[2.4] sm:text-[16px]"
-            style={{ fontFamily: "'Noto Serif TC', serif" }}
-          >
-            {paragraphs[0]}
-          </p>
+            No. {result.id.slice(0, 6)}
+          </span>
         </div>
       </div>
-
-      {/* Second paragraph */}
-      {paragraphs[1] && (
-        <div className="mt-20">
-          <p
-            className="whitespace-pre-line text-right text-[15px] leading-[2.4] sm:text-[16px]"
-            style={{ fontFamily: "'Noto Serif TC', serif" }}
-          >
-            {paragraphs[1]}
-          </p>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes cardFadeIn {
-          0% { opacity: 0; transform: translateY(30px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </div>
+    </article>
   );
 }
 
