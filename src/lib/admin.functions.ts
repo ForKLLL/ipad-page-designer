@@ -73,12 +73,30 @@ export const listReferences = createServerFn({ method: "GET" }).handler(
     );
     const { data, error } = await supabaseAdmin
       .from("reference_documents")
-      .select("id, title, content, is_active, created_at, updated_at")
+      .select("id, title, is_active, created_at, updated_at")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return { documents: data ?? [] };
   },
 );
+
+export const getReferenceContent = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ id: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { supabaseAdmin } = await import(
+      "@/integrations/supabase/client.server"
+    );
+    const { data: row, error } = await supabaseAdmin
+      .from("reference_documents")
+      .select("content")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return { content: row?.content ?? "" };
+  });
 
 export const uploadReference = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
