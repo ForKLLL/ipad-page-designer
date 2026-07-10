@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   adminLogin,
   adminLogout,
+  adminResetSession,
   adminStatus,
   deleteReference,
   getReferenceContent,
@@ -30,9 +31,33 @@ type Doc = {
   updated_at: string;
 };
 
+const MOUNT_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms / 1000}s`)),
+      ms,
+    );
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 async function extractPdfText(file: File): Promise<string> {
   const pdfjs: any = await import("pdfjs-dist/build/pdf.mjs");
-  // Use a fake worker in-thread to avoid worker setup
   pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     "pdfjs-dist/build/pdf.worker.mjs",
     import.meta.url,
@@ -49,22 +74,110 @@ async function extractPdfText(file: File): Promise<string> {
   return chunks.join("\n\n");
 }
 
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-[#f2efee] flex items-center justify-center text-black p-6">
+      {children}
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <Shell>
+      <div className="w-full max-w-md space-y-3">
+        <div className="h-6 w-1/3 bg-black/10 animate-pulse" />
+        <div className="h-4 w-2/3 bg-black/10 animate-pulse" />
+        <div className="h-4 w-1/2 bg-black/10 animate-pulse" />
+      </div>
+    </Shell>
+  );
+}
+
+function ErrorCard({
+  title,
+  message,
+  onRetry,
+}: {
+  title: string;
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <Shell>
+      <div className="w-full max-w-md border border-black/30 p-5 space-y-3">
+        <h2 className="text-lg font-medium">{title}</h2>
+        <p className="text-sm text-black/70 break-words">{message}</p>
+        <button
+          onClick={onRetry}
+          className="bg-black text-white px-4 py-2 text-sm"
+        >
+          Retry
+        </button>
+      </div>
+    </Shell>
+  );
+}
+
 function AdminReferences() {
   const status = useServerFn(adminStatus);
+  const list = useServerFn(listReferences);
   const login = useServerFn(adminLogin);
   const logout = useServerFn(adminLogout);
+  const resetSession = useServerFn(adminResetSession);
+
   const [unlocked, setUnlocked] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [initialDocs, setInitialDocs] = useState<Doc[] | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  const mount = useCallback(async () => {
+    setError(null);
+    setUnlocked(null);
+    setInitialDocs(null);
+    try {
+      const [statusRes, listRes] = await withTimeout(
+        Promise.allSettled([status(), list()]),
+        MOUNT_TIMEOUT_MS,
+        "Admin gate",
+      );
+
+      if (statusRes.status !== "fulfilled") {
+        throw statusRes.reason;
+      }
+      const isUnlocked = statusRes.value.unlocked;
+      setUnlocked(isUnlocked);
+      if (isUnlocked && listRes.status === "fulfilled") {
+        setInitialDocs(listRes.value.documents as Doc[]);
+      }
+    } catch (e) {
+      setError(errMsg(e));
+    }
+  }, [status, list]);
 
   useEffect(() => {
-    status().then((r) => setUnlocked(r.unlocked));
-  }, [status]);
+    void mount();
+  }, [mount, nonce]);
+
+  if (error) {
+    return (
+      <ErrorCard
+        title="Couldn't reach the admin gate"
+        message={error}
+        onRetry={async () => {
+          try {
+            await resetSession();
+          } catch {
+            /* ignore */
+          }
+          setNonce((n) => n + 1);
+        }}
+      />
+    );
+  }
 
   if (unlocked === null) {
-    return (
-      <div className="min-h-screen bg-[#f2efee] flex items-center justify-center text-black">
-        Loading…
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
 
   if (!unlocked) {
@@ -72,7 +185,7 @@ function AdminReferences() {
       <LoginForm
         onLogin={async (password) => {
           const r = await login({ data: { password } });
-          if (r.ok) setUnlocked(true);
+          if (r.ok) setNonce((n) => n + 1);
           return r.ok;
         }}
       />
@@ -81,9 +194,10 @@ function AdminReferences() {
 
   return (
     <Manager
+      initialDocs={initialDocs}
       onLogout={async () => {
         await logout();
-        setUnlocked(false);
+        setNonce((n) => n + 1);
       }}
     />
   );
@@ -128,25 +242,37 @@ function LoginForm({ onLogin }: { onLogin: (p: string) => Promise<boolean> }) {
   );
 }
 
-function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
+function Manager({
+  initialDocs,
+  onLogout,
+}: {
+  initialDocs: Doc[] | null;
+  onLogout: () => Promise<void>;
+}) {
   const list = useServerFn(listReferences);
   const upload = useServerFn(uploadReference);
   const toggle = useServerFn(toggleReference);
   const remove = useServerFn(deleteReference);
   const fetchContent = useServerFn(getReferenceContent);
 
-  const [docs, setDocs] = useState<Doc[] | null>(null);
+  const [docs, setDocs] = useState<Doc[] | null>(initialDocs);
+  const [listError, setListError] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<string, string | "loading">>({});
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
-  const refresh = async () => {
-    const r = await list();
-    setDocs(r.documents as Doc[]);
-    setPreviews({});
-  };
+  const refresh = useCallback(async () => {
+    setListError(null);
+    try {
+      const r = await withTimeout(list(), MOUNT_TIMEOUT_MS, "Documents list");
+      setDocs(r.documents as Doc[]);
+      setPreviews({});
+    } catch (e) {
+      setListError(errMsg(e));
+    }
+  }, [list]);
 
   const loadPreview = async (id: string) => {
     if (previews[id] !== undefined) return;
@@ -154,15 +280,14 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
     try {
       const r = await fetchContent({ data: { id } });
       setPreviews((p) => ({ ...p, [id]: r.content }));
-    } catch (e: any) {
-      setPreviews((p) => ({ ...p, [id]: `Failed to load: ${e?.message ?? e}` }));
+    } catch (e) {
+      setPreviews((p) => ({ ...p, [id]: `Failed to load: ${errMsg(e)}` }));
     }
   };
 
   useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (initialDocs === null) void refresh();
+  }, [initialDocs, refresh]);
 
   const onFile = async (file: File) => {
     setStatus(`Reading ${file.name}…`);
@@ -176,8 +301,8 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
       setTitle((t) => t || file.name.replace(/\.[^.]+$/, ""));
       setContent(text.trim());
       setStatus(`Loaded ${text.length.toLocaleString()} chars from ${file.name}.`);
-    } catch (e: any) {
-      setStatus(`Failed to read ${file.name}: ${e?.message ?? e}`);
+    } catch (e) {
+      setStatus(`Failed to read ${file.name}: ${errMsg(e)}`);
     }
   };
 
@@ -191,8 +316,8 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
       setContent("");
       setStatus("Saved.");
       await refresh();
-    } catch (e: any) {
-      setStatus(`Save failed: ${e?.message ?? e}`);
+    } catch (e) {
+      setStatus(`Save failed: ${errMsg(e)}`);
     } finally {
       setBusy(false);
     }
@@ -266,8 +391,26 @@ function Manager({ onLogout }: { onLogout: () => Promise<void> }) {
           <h2 className="text-lg font-medium">
             Existing documents {docs ? `(${docs.length})` : ""}
           </h2>
-          {docs === null && <p className="text-sm">Loading…</p>}
-          {docs && docs.length === 0 && (
+          {listError && (
+            <div className="border border-red-700/40 p-3 text-sm space-y-2">
+              <p className="text-red-700 break-words">
+                Couldn't load documents: {listError}
+              </p>
+              <button
+                onClick={refresh}
+                className="bg-black text-white px-3 py-1 text-xs"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {docs === null && !listError && (
+            <div className="space-y-2">
+              <div className="h-16 bg-black/5 animate-pulse" />
+              <div className="h-16 bg-black/5 animate-pulse" />
+            </div>
+          )}
+          {docs && docs.length === 0 && !listError && (
             <p className="text-sm text-black/60">No documents yet.</p>
           )}
           <ul className="space-y-3">
