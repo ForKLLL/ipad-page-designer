@@ -1,29 +1,42 @@
 ## Goal
 
-Make `/admin/references` open quickly instead of stalling.
+Stop `/admin/references` from ever appearing as a blank/stuck page inside the editor preview. The route currently shows only "Loading…" (on a beige background it can read as blank) whenever `adminStatus()` or `listReferences()` rejects, because those promises are fired-and-forgotten and any rejection is swallowed.
 
-## Diagnosis
+## What's actually happening
 
-Two things stack up on first visit:
-
-1. **`listReferences` returns full `content` for every row.** If you've uploaded a few PDFs, each row can be tens of thousands of characters. The list view never displays more than the first 2000 chars in a collapsed `<details>`, so we're shipping ~20× more text than needed over the wire.
-2. **`pdfjs-dist` gets pulled into the route bundle.** Even though it's dynamically `import()`ed, Vite still fetches ~1MB of PDF worker code the first time it's needed, and browsers sometimes prefetch it eagerly. Not the main culprit, but worth deferring.
-3. **Sequential requests on mount.** The page runs `adminStatus()` first, then only after it resolves fires `listReferences()`. Two server round-trips in series before anything shows.
+- Locally the page renders correctly (login form in <1s, list resolves in ~1.3s), so the code path is not broken in a general sense.
+- In the editor iframe, the two initial server-fn calls are the only things gating the UI. If either rejects (stale/corrupted `admin-gate` cookie, cold-start error, transient supabase failure) the code has no error branch — `unlocked` stays `null` forever and the "Loading…" pane is shown indefinitely on a `#f2efee` background, i.e. the "blank white page" the user reported.
+- The `useEffect(() => { status().then(...) }, [])` pattern also swallows rejections silently, so nothing appears in the console UI either.
 
 ## Fix
 
-1. **Slim `listReferences`** — select `id, title, is_active, created_at, updated_at, char_count` and drop `content` from the list payload. Add a separate `getReferenceContent(id)` server fn used only when the user opens the Preview `<details>` (lazy).
-   - `char_count` can be computed with `length(content)` via a Postgres expression in the select, so we still show the size badge without shipping the text.
-2. **Parallelise mount requests** — fire `adminStatus()` and (optimistically) `listReferences()` in parallel; if unlocked=false, discard the list result. Or simpler: once unlocked, render `Manager` immediately and let its own fetch run — but skip the extra `Loading…` gate flash by combining both into a single `Promise.all`.
-3. **Lazy-load pdfjs only on file pick** — keep the dynamic import, but also add a small "Parsing PDF…" state so it's clear what's happening. (Already dynamic; just verify no eager import path exists.)
-4. **Add a lightweight skeleton** for the docs list so the page feels responsive while the (now much smaller) request is in flight.
+Frontend-only, no schema or server-fn API changes.
 
-## Technical notes
+1. **Surface mount errors**
+   - In `AdminReferences`, wrap the initial `adminStatus()` in `try/catch`. On rejection, render a visible error card ("Couldn't reach the admin gate — <message>", with a Retry button) instead of leaving `unlocked === null`.
+   - Same treatment in `Manager` for `listReferences()`: keep `docs` null while loading but capture any error into a `listError` state and render it above the (empty) list with a Retry button.
 
-- New server fn signature: `getReferenceContent({ id }) → { content: string }`, admin-gated.
-- Frontend `Doc` type loses `content`; the preview `<details>` fetches on first open and caches locally in component state.
-- No schema change required; the `length(content)` projection is a plain SQL expression through PostgREST (`select=...,char_count:content->>length` won't work — instead we call it as `select=id,title,is_active,created_at,updated_at,char_count:content` and compute length client-side is wrong too; the correct path is a small RPC or a view). Simplest: add a lightweight Postgres **view** `reference_documents_summary` exposing `char_length(content) as char_count` and select from that. One migration, no data change.
+2. **Parallelize the initial requests**
+   - Once `adminStatus` returns `unlocked: true`, `Manager` mounts and immediately triggers its own list fetch. Fire `adminStatus()` and an optimistic `listReferences()` in parallel with `Promise.allSettled` so the docs list is already in hand when Manager renders — saves the second sequential round-trip in the common signed-in case, and if the optimistic list fails because the session isn't valid we just discard it.
+
+3. **Self-heal a bad session cookie**
+   - Add a small server fn `adminResetSession()` that clears the `admin-gate` cookie. The error-card Retry button calls it before retrying, so a corrupted/rotated-secret cookie can't get the user permanently stuck on Loading.
+
+4. **Add a visible timeout**
+   - Race the mount fetches against a 15s timeout so a hung request surfaces as a clear "Request timed out — try again" instead of staying on Loading forever.
+
+5. **Loading skeleton (cosmetic)**
+   - Replace the bare "Loading…" text with a small skeleton block (title + two placeholder rows) so the page never looks blank while requests are in flight.
+
+## Files touched
+
+- `src/routes/admin.references.tsx` — add error state, try/catch, parallel `Promise.allSettled`, timeout race, skeleton, Retry button wiring.
+- `src/lib/admin.functions.ts` — add `adminResetSession` server fn (clears session cookie, no auth required).
 
 ## Expected result
 
-First paint of `/admin/references` goes from "a lot of time" to a normal snappy load, because the list response drops from hundreds of KB (or MB) to a few hundred bytes per row. Preview content is fetched on demand.
+- The admin page never renders as blank/stuck. Any failure of `adminStatus` or `listReferences` shows an inline error with a Retry button.
+- Signed-in mount shortens to one parallel round-trip.
+- A stale/broken `admin-gate` cookie self-heals via the Retry flow.
+
+No changes to analysis, uploads, PDF parsing, or any business logic.
