@@ -3,8 +3,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import {
   adminLogin,
-  adminLogout,
-  adminResetSession,
   adminStatus,
   deleteReference,
   getReferenceContent,
@@ -31,7 +29,19 @@ type Doc = {
   updated_at: string;
 };
 
+const TOKEN_KEY = "admin-token";
 const MOUNT_TIMEOUT_MS = 15_000;
+
+function getToken(): string {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(TOKEN_KEY) ?? "";
+}
+function setToken(t: string) {
+  window.localStorage.setItem(TOKEN_KEY, t);
+}
+function clearToken() {
+  window.localStorage.removeItem(TOKEN_KEY);
+}
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -123,8 +133,6 @@ function AdminReferences() {
   const status = useServerFn(adminStatus);
   const list = useServerFn(listReferences);
   const login = useServerFn(adminLogin);
-  const logout = useServerFn(adminLogout);
-  const resetSession = useServerFn(adminResetSession);
 
   const [unlocked, setUnlocked] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -136,8 +144,9 @@ function AdminReferences() {
     setUnlocked(null);
     setInitialDocs(null);
     try {
+      const token = getToken();
       const statusRes = await withTimeout(
-        status(),
+        status({ data: { token } }),
         MOUNT_TIMEOUT_MS,
         "Admin gate",
       );
@@ -145,11 +154,13 @@ function AdminReferences() {
       setUnlocked(isUnlocked);
       if (isUnlocked) {
         const listRes = await withTimeout(
-          list(),
+          list({ data: { token } }),
           MOUNT_TIMEOUT_MS,
           "Documents list",
         );
         setInitialDocs(listRes.documents as Doc[]);
+      } else {
+        clearToken();
       }
     } catch (e) {
       setError(errMsg(e));
@@ -165,12 +176,8 @@ function AdminReferences() {
       <ErrorCard
         title="Couldn't reach the admin gate"
         message={error}
-        onRetry={async () => {
-          try {
-            await resetSession();
-          } catch {
-            /* ignore */
-          }
+        onRetry={() => {
+          clearToken();
           setNonce((n) => n + 1);
         }}
       />
@@ -187,8 +194,12 @@ function AdminReferences() {
         onLogin={async (password) => {
           try {
             const r = await login({ data: { password } });
-            if (r.ok) setNonce((n) => n + 1);
-            return { ok: r.ok };
+            if (r.ok) {
+              setToken(r.token);
+              setNonce((n) => n + 1);
+              return { ok: true };
+            }
+            return { ok: false };
           } catch (e) {
             return { ok: false, message: errMsg(e) };
           }
@@ -200,8 +211,8 @@ function AdminReferences() {
   return (
     <Manager
       initialDocs={initialDocs}
-      onLogout={async () => {
-        await logout();
+      onLogout={() => {
+        clearToken();
         setNonce((n) => n + 1);
       }}
     />
@@ -263,7 +274,7 @@ function Manager({
   onLogout,
 }: {
   initialDocs: Doc[] | null;
-  onLogout: () => Promise<void>;
+  onLogout: () => void;
 }) {
   const list = useServerFn(listReferences);
   const upload = useServerFn(uploadReference);
@@ -282,7 +293,11 @@ function Manager({
   const refresh = useCallback(async () => {
     setListError(null);
     try {
-      const r = await withTimeout(list(), MOUNT_TIMEOUT_MS, "Documents list");
+      const r = await withTimeout(
+        list({ data: { token: getToken() } }),
+        MOUNT_TIMEOUT_MS,
+        "Documents list",
+      );
       setDocs(r.documents as Doc[]);
       setPreviews({});
     } catch (e) {
@@ -294,7 +309,7 @@ function Manager({
     if (previews[id] !== undefined) return;
     setPreviews((p) => ({ ...p, [id]: "loading" }));
     try {
-      const r = await fetchContent({ data: { id } });
+      const r = await fetchContent({ data: { token: getToken(), id } });
       setPreviews((p) => ({ ...p, [id]: r.content }));
     } catch (e) {
       setPreviews((p) => ({ ...p, [id]: `Failed to load: ${errMsg(e)}` }));
@@ -327,7 +342,13 @@ function Manager({
     setBusy(true);
     setStatus("Saving…");
     try {
-      await upload({ data: { title: title.trim(), content: content.trim() } });
+      await upload({
+        data: {
+          token: getToken(),
+          title: title.trim(),
+          content: content.trim(),
+        },
+      });
       setTitle("");
       setContent("");
       setStatus("Saved.");
@@ -449,7 +470,11 @@ function Manager({
                         checked={d.is_active}
                         onChange={async (e) => {
                           await toggle({
-                            data: { id: d.id, is_active: e.target.checked },
+                            data: {
+                              token: getToken(),
+                              id: d.id,
+                              is_active: e.target.checked,
+                            },
                           });
                           await refresh();
                         }}
@@ -459,7 +484,7 @@ function Manager({
                     <button
                       onClick={async () => {
                         if (!confirm(`Delete "${d.title}"?`)) return;
-                        await remove({ data: { id: d.id } });
+                        await remove({ data: { token: getToken(), id: d.id } });
                         await refresh();
                       }}
                       className="text-xs underline text-red-700"
