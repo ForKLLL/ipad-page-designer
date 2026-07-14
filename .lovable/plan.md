@@ -1,36 +1,68 @@
-## Problem
+## Goal
 
-After entering the correct admin password, the UI flips back to the login form. `adminLogin` returns `ok: true`, but the very next `adminStatus` call returns `unlocked: false`. The Lovable preview loads the app inside a cross‑origin iframe, and the browser is dropping the `admin-gate` session cookie even though it's `SameSite=None; Secure` (third‑party cookie blocking / partitioning).
+Anyone can take the test and submit a result. All submissions appear in a public gallery. Nobody (not even the submitter) can edit or delete their own row. The admin (already gated by the existing password + bearer-token flow) can take down individual submissions from an admin view.
 
-## Fix
+## Database (one migration)
 
-Stop relying on a browser cookie for the admin gate. Switch to a **client-held bearer token** that survives in `localStorage` and is sent explicitly with every admin server-function call.
+Table `results` today allows public INSERT with `WITH CHECK (true)` and public SELECT. Keep both, tighten INSERT, and route deletes through the admin server function using the service role.
 
-### Server (`src/lib/admin.server.ts`)
-- Remove `useSession` / cookie config.
-- Add `signAdminToken(payload, secret)` and `verifyAdminToken(token, secret)` using HMAC-SHA256 (`node:crypto`) — compact `base64url(payload).base64url(sig)` format with an `exp` timestamp (7 days).
-- `requireAdminToken(token)` verifies the token; throws `Unauthorized` if missing/invalid/expired.
-- Keep `adminPasswordMatches` unchanged.
+- Keep policy: `Anyone can view results` (SELECT to anon+authenticated, `USING (true)`) — needed for the public gallery.
+- Replace policy: `Anyone can submit results` (INSERT to anon+authenticated) with a validated `WITH CHECK`:
+  - `b_value BETWEEN 0 AND 100`
+  - `length(shade_name) BETWEEN 1 AND 40`
+  - `hex ~ '^#[0-9A-Fa-f]{6}$'`
+  - `length(analysis) BETWEEN 1 AND 4000`
+  - `free_text IS NULL OR length(free_text) <= 500`
+- No UPDATE or DELETE policy is added, so users (anon and authenticated) cannot modify or remove rows. This resolves the "always true" warn for INSERT and blocks tampering.
+- Admin deletion happens server-side via `supabaseAdmin` (service role bypasses RLS), so no DELETE policy is needed for the admin path.
 
-### Server functions (`src/lib/admin.functions.ts`)
-- `adminLogin`: on correct password, return `{ ok: true, token }`; on wrong password, `{ ok: false }`.
-- `adminStatus({ token })`: return `{ unlocked: verifyAdminToken(token) }`; accept empty/missing token.
-- `adminLogout`: becomes a no-op success (client just discards the token). Keep the export for compatibility.
-- Remove `adminResetSession` (no longer needed).
-- All data functions (`listReferences`, `getReferenceContent`, `uploadReference`, `toggleReference`, `deleteReference`) take `{ token, ...args }` and call `requireAdminToken(token)` before doing work.
+## Server functions (`src/lib/admin.functions.ts`)
 
-### Client (`src/routes/admin.references.tsx`)
-- Store the token in `localStorage` under `admin-token`; helper `getToken()` / `setToken()` / `clearToken()`.
-- On mount, if a token exists, call `adminStatus({ data: { token } })`; if `unlocked`, load the list; otherwise clear the token and show login.
-- On successful login, save the returned token and re-mount.
-- Pass the token in every admin call.
-- "Sign out" clears the token and re-renders the login form.
-- Keep the existing loading / error / list / upload UI as-is.
+Add two admin-gated functions (same bearer-token pattern as the reference-documents ones):
 
-## Why this works
+- `listResults({ token })` → returns `id, created_at, b_value, shade_name, hex, analysis, free_text` ordered by `created_at desc`. Calls `requireAdminToken`, uses `supabaseAdmin`.
+- `deleteResult({ token, id })` → `requireAdminToken`, then `supabaseAdmin.from('results').delete().eq('id', id)`.
 
-The token travels in the request body (or an `Authorization`-style field we control), not a cookie, so third‑party cookie policies don't touch it. `localStorage` in the preview iframe is scoped to the preview origin and persists across reloads.
+No change to the existing `analyzeBalance` or reference-document flow.
+
+## Public gallery route (`src/routes/gallery.tsx`)
+
+New public route (SSR default, no auth gate). Reads from `results` using the browser Supabase client (public SELECT policy already covers this):
+
+```
+supabase.from('results')
+  .select('id, created_at, b_value, shade_name, hex, analysis, free_text')
+  .order('created_at', { ascending: false })
+  .limit(200)
+```
+
+- Head: title/description/OG tags for the gallery.
+- Layout: responsive grid of cards. Each card shows the hex swatch (background = `hex`), `shade_name`, `b_value`, a truncated `analysis`, and (if present) `free_text`. Click to expand full analysis in a dialog. Read-only — no edit/delete controls.
+- Empty state: friendly "還沒有作品" message.
+
+## Link the gallery from the home page
+
+Add a subtle "查看藝廊 / Gallery" link in the existing index page header/footer so users can reach it after finishing the test. No redesign of `/`.
+
+## Admin submissions view (`src/routes/admin.submissions.tsx`)
+
+New admin route mirroring the existing `admin.references.tsx` pattern:
+
+- Same bearer-token gate (`localStorage` `admin-token`, `adminStatus`, login form on lock).
+- Table/list of submissions from `listResults`: swatch, shade name, hex, b value, created_at, truncated analysis, free_text, and a "Take down" (delete) button with a confirm dialog.
+- Header links between `/admin/references` and `/admin/submissions` so the admin can move between the two views without re-entering the password.
+
+Existing `admin.references.tsx` is not modified beyond adding a nav link to the submissions view.
 
 ## Out of scope
 
-No UI redesign, no changes to reference-document schema, no changes to `/` analysis flow.
+- No user accounts / auth on the test flow.
+- No editing of submissions by anyone (spec-required).
+- No changes to the analysis prompt, reference documents, or `/` quiz UX beyond adding the gallery link.
+- No moderation queue / soft-delete — admin delete is hard delete via service role.
+
+## Technical notes
+
+- The tightened INSERT `WITH CHECK` covers the Supabase linter warning by replacing `true` with real constraints while keeping anonymous submissions working.
+- Public gallery reads run through the browser publishable client — no server function needed, matches the existing `results` public SELECT policy.
+- Admin delete goes through `supabaseAdmin`; no new RLS policy for DELETE, so RLS still blocks tampering from the client.

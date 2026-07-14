@@ -370,12 +370,20 @@ function Manager({
               Active documents are injected into every analysis as grounding material.
             </p>
           </div>
-          <button
-            onClick={onLogout}
-            className="text-sm underline underline-offset-4"
-          >
-            Sign out
-          </button>
+          <div className="flex items-center gap-4">
+            <a
+              href="/admin/submissions"
+              className="text-sm underline underline-offset-4"
+            >
+              Submissions
+            </a>
+            <button
+              onClick={onLogout}
+              className="text-sm underline underline-offset-4"
+            >
+              Sign out
+            </button>
+          </div>
         </header>
 
         <section className="border border-black/20 p-5 space-y-4">
