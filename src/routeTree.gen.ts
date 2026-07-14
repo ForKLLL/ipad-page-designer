@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminSubmissionsRouteImport } from './routes/admin.submissions'
 import { Route as AdminReferencesRouteImport } from './routes/admin.references'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminSubmissionsRoute = AdminSubmissionsRouteImport.update({
+  id: '/admin/submissions',
+  path: '/admin/submissions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminReferencesRoute = AdminReferencesRouteImport.update({
@@ -26,27 +32,31 @@ const AdminReferencesRoute = AdminReferencesRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin/references': typeof AdminReferencesRoute
+  '/admin/submissions': typeof AdminSubmissionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/references': typeof AdminReferencesRoute
+  '/admin/submissions': typeof AdminSubmissionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin/references': typeof AdminReferencesRoute
+  '/admin/submissions': typeof AdminSubmissionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin/references'
+  fullPaths: '/' | '/admin/references' | '/admin/submissions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin/references'
-  id: '__root__' | '/' | '/admin/references'
+  to: '/' | '/admin/references' | '/admin/submissions'
+  id: '__root__' | '/' | '/admin/references' | '/admin/submissions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminReferencesRoute: typeof AdminReferencesRoute
+  AdminSubmissionsRoute: typeof AdminSubmissionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/submissions': {
+      id: '/admin/submissions'
+      path: '/admin/submissions'
+      fullPath: '/admin/submissions'
+      preLoaderRoute: typeof AdminSubmissionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/references': {
@@ -71,6 +88,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminReferencesRoute: AdminReferencesRoute,
+  AdminSubmissionsRoute: AdminSubmissionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
