@@ -126,3 +126,36 @@ export const deleteReference = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
+
+export const listResults = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => tokenField.parse(data ?? {}))
+  .handler(async ({ data }) => {
+    requireAdminToken(data.token);
+    const { supabaseAdmin } = await import(
+      "@/integrations/supabase/client.server"
+    );
+    const { data: rows, error } = await supabaseAdmin
+      .from("results")
+      .select("id, created_at, b_value, shade_name, hex, analysis, free_text")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) throw new Error(error.message);
+    return { results: rows ?? [] };
+  });
+
+export const deleteResult = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ token: z.string().optional(), id: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    requireAdminToken(data.token);
+    const { supabaseAdmin } = await import(
+      "@/integrations/supabase/client.server"
+    );
+    const { error } = await supabaseAdmin
+      .from("results")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
