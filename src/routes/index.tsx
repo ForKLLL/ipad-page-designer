@@ -13,10 +13,10 @@ export const Route = createFileRoute("/")({
         content:
           "An 11-question reflection on balance and imbalance. Find the shade of grey that maps to your current inner state.",
       },
-      { property: "og:title", content: "BalancE" },
+      { property: "og:title", content: "BalancE — Where does your balance land?" },
       {
         property: "og:description",
-        content: "Where does your balance land — between black, grey, and white?",
+        content: "An 11-question reflection on balance and imbalance. Find the shade of grey that maps to your current inner state.",
       },
     ],
   }),
