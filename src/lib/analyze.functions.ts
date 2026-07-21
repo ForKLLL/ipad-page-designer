@@ -174,7 +174,11 @@ export const analyzeBalance = createServerFn({ method: "POST" })
     }
 
     const referenceBlock = await loadReferenceBlock();
-    const systemContent = SYSTEM_PROMPT + referenceBlock;
+    const langDirective =
+      data.lang === "en"
+        ? `\n\n【Output Language Override】Respond in English only. The first sentence MUST follow this exact format: "Your result points to #XXXXXX [Color Name]." (use the color's English name: Pure Black, Near Black, Dark Grey, Deep Grey, Mid-Dark Grey, Mid Grey, Standard Grey, Light-Mid Grey, Light Grey, Bright Grey, Pale Grey, Pure White). Keep the same three-tier structure (Mechanism / Mapping / Fluidity) and ~200 words. Do NOT use Markdown, headings, or extra annotations.`
+        : "";
+    const systemContent = SYSTEM_PROMPT + referenceBlock + langDirective;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
