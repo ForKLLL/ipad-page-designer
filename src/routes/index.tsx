@@ -1017,7 +1017,7 @@ function GalleryScreen({
     (async () => {
       const { data } = await supabase
         .from("results")
-        .select("id, b_value, shade_name, hex, analysis")
+        .select("id, b_value, shade_name, hex, analysis, created_at")
         .order("created_at", { ascending: false })
         .limit(120);
       if (!mounted) return;
