@@ -700,11 +700,13 @@ function LoadingScreen() {
 }
 
 function ResultScreen({
+  lang,
   shade,
   analysis,
   onGallery,
   onRestart,
 }: {
+  lang: Lang;
   shade: Shade;
   analysis: string;
   onGallery: () => void;
@@ -717,8 +719,9 @@ function ResultScreen({
   return (
     <div className="flex flex-1 flex-col">
       <h2 className="text-[28px] sm:text-[34px]" style={{ fontWeight: 700 }}>
-        分析結果
+        {RESULT_TITLE[lang]}
       </h2>
+
 
       <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div>
