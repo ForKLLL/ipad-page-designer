@@ -287,12 +287,22 @@ function shadeForB(b: number): Shade {
   return SHADES.find((s) => s.bValue === snapped) ?? SHADES[5];
 }
 
+function formatDDMM(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}`;
+}
+
 type SavedResult = {
   id: string;
   b_value: number;
   shade_name: string;
   hex: string;
   analysis: string;
+  created_at?: string;
 };
 
 type Stage =
@@ -1017,7 +1027,7 @@ function GalleryScreen({
     (async () => {
       const { data } = await supabase
         .from("results")
-        .select("id, b_value, shade_name, hex, analysis")
+        .select("id, b_value, shade_name, hex, analysis, created_at")
         .order("created_at", { ascending: false })
         .limit(120);
       if (!mounted) return;
@@ -1194,7 +1204,7 @@ function ScatteredCard({ placed }: { placed: Placed }) {
                 opacity: 0.55,
               }}
             >
-              B={result.b_value}
+              {formatDDMM(result.created_at)}
             </div>
             <h4
               className="truncate"
