@@ -1,17 +1,29 @@
-## Update analysis prompt
+## Goal
 
-Replace the `SYSTEM_PROMPT` constant in `src/lib/analyze.functions.ts` with the new guide you pasted, preserving the existing pipeline (reference documents append, hex extraction, B value mapping).
+Make the gallery denser (more cards visible without scrolling) and show each card's **full** analysis instead of a 220-char snippet.
 
-### Changes
+## Changes (all in `src/routes/index.tsx`, gallery section only)
 
-- **`src/lib/analyze.functions.ts`** — swap `SYSTEM_PROMPT` for the new version:
-  - Full Role & Context, Core Directives, Input logic sections as written.
-  - Expanded 11-color interpretations (each color's psychology + balance reading, condensed slightly to stay readable but keeping all key concepts: authority/defense, resilience, sincerity/restraint, pragmatism, buffer, absolute calm, acceptance, warm order, efficiency, transcendent calm, purity/distance).
-  - Include the color-psychology theoretical backing (Valdez & Mehrabian formulas, Jonauskaite 2025 meta-review, Max Planck alpha-wave note, Eva Heller, Galinsky) as a compact "理論依據" block so the AI can draw on it.
-  - Keep the Output Format (3-part structure, 200–250 字, opening sentence template) and Tone guidance.
-  - Keep the trailing instruction: output only Traditional Chinese, no markdown, first sentence must match `你的測驗結果指向了 #XXXXXX [顏色名稱]。`
+1. **Shrink each card** so more fit per row:
+   - `CARD_W`: 210 → 150
+   - `CARD_H`: 290 → 210 (auto-adjusts if text needs slightly more, see below)
+   - `GAP_X`: 44 → 22
+   - `GAP_Y`: 56 → 28
+   - Reduce swatch (46→34), header font sizes (14→11 title, 8→7 B=), and internal padding proportionally.
 
-### Not changing
+2. **Show full analysis** on each card:
+   - Remove the `.slice(0, 220)` snippet and the `…` truncation.
+   - Render the entire `result.analysis` in the card body.
+   - Set body font to ~6.5px with tight line-height (1.45) so a full ~230字 result fits.
+   - Because text length varies per card, switch card height from a fixed `CARD_H` to a **content-driven** height with a `min-h` — placement grid still uses `CARD_H` as the row unit so layout stays predictable, and slight text overflow inside a card is allowed (cards are rotated/scattered so uneven bottoms look natural, matching the reference).
+   - Drop the truncating `overflow-hidden` on the paragraph.
 
-- Input schema, user prompt builder, reference-document loading, model (`google/gemini-2.5-flash`), hex parsing, and B-value mapping all stay the same.
-- No UI or database changes.
+3. **Reduce jitter and rotation** slightly (jitter 26→14, rot ±18 → ±10) so tighter cards don't visually collide.
+
+4. Keep the logo zone, fall-in animation, realtime insertions, and all other behavior unchanged.
+
+No backend, schema, or analysis-prompt changes.
+
+## Result
+
+On a 1273px viewport the gallery goes from ~4 columns of tall cards to ~6–7 columns of compact cards, each displaying the complete analysis text — significantly more balances visible before scrolling.
