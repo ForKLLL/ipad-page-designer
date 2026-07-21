@@ -1195,7 +1195,7 @@ function ScatteredCard({ placed }: { placed: Placed }) {
                 opacity: 0.55,
               }}
             >
-              B={result.b_value}
+              {formatDDMM(result.created_at)}
             </div>
             <h4
               className="truncate"
