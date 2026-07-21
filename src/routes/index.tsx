@@ -604,11 +604,13 @@ function QuestionScreen({
 }
 
 function FreeScreen({
+  lang,
   value,
   onChange,
   onBack,
   onResults,
 }: {
+  lang: Lang;
   value: string;
   onChange: (v: string) => void;
   onBack: () => void;
