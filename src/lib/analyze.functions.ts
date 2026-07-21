@@ -4,6 +4,7 @@ import { z } from "zod";
 const InputSchema = z.object({
   answers: z.array(z.number().int().min(-1).max(3)).length(10),
   freeText: z.string().max(200),
+  lang: z.enum(["zh", "en"]).default("zh"),
   questions: z.array(
     z.object({
       prompt: z.string(),
