@@ -29,7 +29,9 @@ type Question = {
   tiers: number[];
 };
 
-const QUESTIONS: Question[] = [
+type Lang = "zh" | "en";
+
+const QUESTIONS_ZH: Question[] = [
   {
     prompt: "你負責的重要項目在最後關頭突然出現重大失誤，一般而言你怎樣應對?",
     options: [
@@ -132,6 +134,133 @@ const QUESTIONS: Question[] = [
   },
 ];
 
+const QUESTIONS_EN: Question[] = [
+  {
+    prompt: "A critical project you lead suddenly hits a major failure at the last moment. What do you typically do?",
+    options: [
+      "Cut off all personal emotion immediately and enter a purely rational mode.",
+      "Feel intensely anxious inside, but keep it together on the surface and push through by sheer will.",
+      "Accept that things go wrong — plans never survive contact with reality — and adapt to whatever's in front of me.",
+      "See no point in shouldering it alone; ask people around me for help and figure it out together.",
+    ],
+    tiers: [20, 40, 70, 90],
+  },
+  {
+    prompt: "In a team, the role you usually play is:",
+    options: [
+      "The decision-maker who sets the direction.",
+      "The reliable executor doing the concrete, practical work.",
+      "The mediator who balances everyone's emotions and interests.",
+      "The spark who brings ideas and keeps the mood light and energetic.",
+    ],
+    tiers: [10, 30, 60, 90],
+  },
+  {
+    prompt: "When facing a significant personal decision, you tend to:",
+    options: [
+      "Think it through alone, without discussing it with anyone.",
+      "Collect objective facts and judge by logic.",
+      "Consult a few trusted voices, then weigh it myself.",
+      "Ask widely for others' views, then follow my intuition.",
+    ],
+    tiers: [10, 30, 60, 90],
+  },
+  {
+    prompt: "How do you handle your fear of losing control?",
+    options: [
+      "Build strict rules for myself to keep the unknown out.",
+      "Prepare multiple contingency plans; readiness offsets unease.",
+      "Accept that some things are uncontrollable and focus on what I can affect.",
+      "See loss of control as part of experience — I'm willing to embrace it.",
+    ],
+    tiers: [10, 30, 70, 100],
+  },
+  {
+    prompt: "Which mode of socializing suits you best?",
+    options: [
+      "Very little; I guard my personal space absolutely.",
+      "Selective — I stay in touch with only a few close people.",
+      "Moderate — a mix of close relationships and casual contact.",
+      "Wide-open — I enjoy new faces and easy conversation.",
+    ],
+    tiers: [0, 30, 70, 100],
+  },
+  {
+    prompt: "Your attitude toward sadness or low moods is:",
+    options: [
+      "They're part of my strength; I'm willing to sit alone inside them.",
+      "They need to be managed rationally and not disturb daily order.",
+      "They can stay a while, then I let them leave gently.",
+      "I prefer to shift attention quickly through something cheerful.",
+    ],
+    tiers: [0, 30, 70, 90],
+  },
+  {
+    prompt: "When you're completely alone with nothing to do, you usually:",
+    options: [
+      "Sink into your inner world — thoughts churning or drifting into blankness.",
+      "Plan what's next and keep things ordered.",
+      "Relax without indulging; enjoy the quiet time with yourself.",
+      "Feel uneasy and reach for something to do or someone to talk to.",
+    ],
+    tiers: [10, 40, 70, 100],
+  },
+  {
+    prompt: "If you kept a journal, its style would most likely be:",
+    options: [
+      "Private and dense, full of metaphor and deep emotion.",
+      "A steady log of events and reflections.",
+      "Everyday observations in an even, calm voice.",
+      "Light lists or scattered sparks of inspiration.",
+    ],
+    tiers: [0, 30, 60, 90],
+  },
+  {
+    prompt: "Facing someone else's strong emotion (anger, tears), you usually:",
+    options: [
+      "Stay silent — neither intervening nor responding.",
+      "Analyze the cause rationally and propose a solution.",
+      "Listen actively, empathize, and respond through presence.",
+      "Try to lighten the mood with an easier topic.",
+    ],
+    tiers: [10, 30, 70, 90],
+  },
+  {
+    prompt: "Your ideal 'inner calm' is more like:",
+    options: [
+      "The stillness of the deep sea — calm surface, hidden currents below.",
+      "A mirror-flat lake, reflecting everything clearly.",
+      "A murmuring stream — continuous and gentle.",
+      "A clear sky — no clouds, no wind.",
+    ],
+    tiers: [10, 40, 70, 100],
+  },
+];
+
+function getQuestions(lang: Lang): Question[] {
+  return lang === "en" ? QUESTIONS_EN : QUESTIONS_ZH;
+}
+
+const FREE_PROMPT: Record<Lang, string> = {
+  zh: "請用一段話描述你心中理想的「平衡」狀態。可以是一個場景、一種感覺、一個比喻，或者你曾經體驗過的某個瞬間。",
+  en: "In a short paragraph, describe your ideal state of 'balance.' It can be a scene, a feeling, a metaphor, or a moment you've actually experienced.",
+};
+
+const FREE_PLACEHOLDER: Record<Lang, string> = {
+  zh: "平衡是……",
+  en: "Balance is…",
+};
+
+const RESULT_TITLE: Record<Lang, string> = {
+  zh: "分析結果",
+  en: "Your Result",
+};
+
+const ERROR_TITLE: Record<Lang, string> = {
+  zh: "分析暫時無法完成",
+  en: "Analysis couldn't finish",
+};
+
 type Shade = {
   bValue: number;
   hex: string;
@@ -180,7 +309,9 @@ const INK = "#0b0b0b";
 
 function BalancEApp() {
   const [stage, setStage] = useState<Stage>({ kind: "intro" });
-  const [answers, setAnswers] = useState<number[]>(() => Array(QUESTIONS.length).fill(-1));
+  const [lang, setLang] = useState<Lang>("zh");
+  const questions = getQuestions(lang);
+  const [answers, setAnswers] = useState<number[]>(() => Array(QUESTIONS_ZH.length).fill(-1));
   const [freeText, setFreeText] = useState("");
   const analyze = useServerFn(analyzeBalance);
 
@@ -193,7 +324,8 @@ function BalancEApp() {
           data: {
             answers,
             freeText,
-            questions: QUESTIONS.map((q) => ({
+            lang,
+            questions: questions.map((q) => ({
               prompt: q.prompt,
               options: q.options,
               tiers: q.tiers,
@@ -224,17 +356,19 @@ function BalancEApp() {
         setStage({ kind: "result", bValue: res.bValue, analysis: res.analysis, savedId });
       } catch (e) {
         if (cancelled) return;
-        const message = e instanceof Error ? e.message : "分析失敗，請再試一次。";
+        const message = e instanceof Error
+          ? e.message
+          : lang === "en" ? "Analysis failed. Please try again." : "分析失敗，請再試一次。";
         setStage({ kind: "error", message });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [stage, analyze, answers, freeText]);
+  }, [stage, analyze, answers, freeText, lang, questions]);
 
   const restart = () => {
-    setAnswers(Array(QUESTIONS.length).fill(-1));
+    setAnswers(Array(QUESTIONS_ZH.length).fill(-1));
     setFreeText("");
     setStage({ kind: "intro" });
   };
@@ -244,6 +378,7 @@ function BalancEApp() {
       className="min-h-screen w-full"
       style={{ backgroundColor: BG, color: INK, fontFamily: "'Noto Serif TC', serif" }}
     >
+      <LangToggle lang={lang} onChange={setLang} />
       {stage.kind === "gallery" ? (
         <GalleryScreen onRestart={restart} highlightId={undefined} />
       ) : (
@@ -258,14 +393,14 @@ function BalancEApp() {
           {stage.kind === "question" && (
             <QuestionScreen
               index={stage.index}
-              question={QUESTIONS[stage.index]}
+              question={questions[stage.index]}
               selected={answers[stage.index]}
               onSelect={(opt) => {
                 const next = [...answers];
                 next[stage.index] = opt;
                 setAnswers(next);
                 setTimeout(() => {
-                  if (stage.index + 1 < QUESTIONS.length) {
+                  if (stage.index + 1 < questions.length) {
                     setStage({ kind: "question", index: stage.index + 1 });
                   } else {
                     setStage({ kind: "free" });
@@ -282,9 +417,10 @@ function BalancEApp() {
 
           {stage.kind === "free" && (
             <FreeScreen
+              lang={lang}
               value={freeText}
               onChange={setFreeText}
-              onBack={() => setStage({ kind: "question", index: QUESTIONS.length - 1 })}
+              onBack={() => setStage({ kind: "question", index: questions.length - 1 })}
               onResults={() => setStage({ kind: "loading" })}
             />
           )}
@@ -293,6 +429,7 @@ function BalancEApp() {
 
           {stage.kind === "result" && (
             <ResultScreen
+              lang={lang}
               shade={shadeForB(stage.bValue)}
               analysis={stage.analysis}
               onGallery={() => setStage({ kind: "gallery" })}
@@ -310,6 +447,53 @@ function BalancEApp() {
         </div>
       )}
 
+    </div>
+  );
+}
+
+/* ---------------- language toggle ---------------- */
+
+function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
+  const base: React.CSSProperties = {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    letterSpacing: "0.08em",
+    padding: "6px 10px",
+    lineHeight: 1,
+    transition: "opacity 0.15s, background-color 0.15s, color 0.15s",
+  };
+  return (
+    <div
+      className="fixed z-50 flex items-center gap-0"
+      style={{
+        top: 18,
+        right: 18,
+        border: `1px solid ${INK}`,
+        backgroundColor: BG,
+      }}
+    >
+      <button
+        onClick={() => onChange("zh")}
+        aria-pressed={lang === "zh"}
+        style={{
+          ...base,
+          backgroundColor: lang === "zh" ? INK : "transparent",
+          color: lang === "zh" ? BG : INK,
+        }}
+      >
+        中
+      </button>
+      <button
+        onClick={() => onChange("en")}
+        aria-pressed={lang === "en"}
+        style={{
+          ...base,
+          backgroundColor: lang === "en" ? INK : "transparent",
+          color: lang === "en" ? BG : INK,
+        }}
+      >
+        EN
+      </button>
     </div>
   );
 }
@@ -467,11 +651,13 @@ function QuestionScreen({
 }
 
 function FreeScreen({
+  lang,
   value,
   onChange,
   onBack,
   onResults,
 }: {
+  lang: Lang;
   value: string;
   onChange: (v: string) => void;
   onBack: () => void;
@@ -490,13 +676,13 @@ function FreeScreen({
         className="mt-10 text-[22px] leading-[1.7] sm:mt-14 sm:text-[26px]"
         style={{ fontWeight: 600 }}
       >
-        請用一段話描述你心中理想的「平衡」狀態。可以是一個場景、一種感覺、一個比喻，或者你曾經體驗過的某個瞬間。
+        {FREE_PROMPT[lang]}
       </h2>
 
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value.slice(0, 120))}
-        placeholder="平衡是……"
+        placeholder={FREE_PLACEHOLDER[lang]}
         className="mt-10 w-full resize-none bg-transparent p-7 text-[18px] leading-[1.8] outline-none"
         style={{
           border: `1px solid ${INK}55`,
@@ -561,11 +747,13 @@ function LoadingScreen() {
 }
 
 function ResultScreen({
+  lang,
   shade,
   analysis,
   onGallery,
   onRestart,
 }: {
+  lang: Lang;
   shade: Shade;
   analysis: string;
   onGallery: () => void;
@@ -578,8 +766,9 @@ function ResultScreen({
   return (
     <div className="flex flex-1 flex-col">
       <h2 className="text-[28px] sm:text-[34px]" style={{ fontWeight: 700 }}>
-        分析結果
+        {RESULT_TITLE[lang]}
       </h2>
+
 
       <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div>
