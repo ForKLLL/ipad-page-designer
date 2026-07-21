@@ -778,12 +778,12 @@ function computePlacements(cards: CardLayout[], viewportW: number) {
   const placements: Placed[] = cards.map((c, i) => {
     const slot = slots[i] ?? { row: 0, col: 0 };
     const seed = hashId(c.id || String(i));
-    const jitterRange = 26;
+    const jitterRange = 14;
     const jitterX = (seed % (jitterRange * 2)) - jitterRange;
-    const jitterY = (((seed >> 5) % (jitterRange * 2)) - jitterRange) * 0.7;
-    const rot = ((seed >> 9) % 36) - 18;
-    const spinFrom = ((seed >> 13) % 90) * (seed & 1 ? -1 : 1) - 60;
-    const delay = Math.min(i * 0.09, 2.4);
+    const jitterY = (((seed >> 5) % (jitterRange * 2)) - jitterRange) * 0.6;
+    const rot = ((seed >> 9) % 20) - 10;
+    const spinFrom = ((seed >> 13) % 60) * (seed & 1 ? -1 : 1) - 40;
+    const delay = Math.min(i * 0.07, 2.4);
     const x = offsetX + slot.col * (CARD_W + GAP_X) + jitterX;
     const y = EDGE_PAD + slot.row * (CARD_H + GAP_Y) + jitterY;
     return { id: c.id, x, y, rot, delay, spinFrom, result: c.result };
