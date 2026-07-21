@@ -451,6 +451,53 @@ function BalancEApp() {
   );
 }
 
+/* ---------------- language toggle ---------------- */
+
+function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
+  const base: React.CSSProperties = {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    letterSpacing: "0.08em",
+    padding: "6px 10px",
+    lineHeight: 1,
+    transition: "opacity 0.15s, background-color 0.15s, color 0.15s",
+  };
+  return (
+    <div
+      className="fixed z-50 flex items-center gap-0"
+      style={{
+        top: 18,
+        right: 18,
+        border: `1px solid ${INK}`,
+        backgroundColor: BG,
+      }}
+    >
+      <button
+        onClick={() => onChange("zh")}
+        aria-pressed={lang === "zh"}
+        style={{
+          ...base,
+          backgroundColor: lang === "zh" ? INK : "transparent",
+          color: lang === "zh" ? BG : INK,
+        }}
+      >
+        中
+      </button>
+      <button
+        onClick={() => onChange("en")}
+        aria-pressed={lang === "en"}
+        style={{
+          ...base,
+          backgroundColor: lang === "en" ? INK : "transparent",
+          color: lang === "en" ? BG : INK,
+        }}
+      >
+        EN
+      </button>
+    </div>
+  );
+}
+
 /* ---------------- screens ---------------- */
 
 function Intro({ onBegin, onGallery }: { onBegin: () => void; onGallery: () => void }) {
