@@ -293,6 +293,7 @@ type SavedResult = {
   shade_name: string;
   hex: string;
   analysis: string;
+  created_at?: string;
 };
 
 type Stage =
