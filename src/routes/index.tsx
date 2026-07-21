@@ -719,11 +719,11 @@ type CardLayout = {
   result: SavedResult;
 };
 
-const CARD_W = 210;
-const CARD_H = 290;
-const GAP_X = 44;
-const GAP_Y = 56;
-const EDGE_PAD = 32;
+const CARD_W = 150;
+const CARD_H = 210;
+const GAP_X = 22;
+const GAP_Y = 28;
+const EDGE_PAD = 24;
 
 // Reserved rectangle (in cells) at the top-center for the huge logo.
 const LOGO_ROWS = 2;
