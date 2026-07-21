@@ -309,7 +309,9 @@ const INK = "#0b0b0b";
 
 function BalancEApp() {
   const [stage, setStage] = useState<Stage>({ kind: "intro" });
-  const [answers, setAnswers] = useState<number[]>(() => Array(QUESTIONS.length).fill(-1));
+  const [lang, setLang] = useState<Lang>("zh");
+  const questions = getQuestions(lang);
+  const [answers, setAnswers] = useState<number[]>(() => Array(QUESTIONS_ZH.length).fill(-1));
   const [freeText, setFreeText] = useState("");
   const analyze = useServerFn(analyzeBalance);
 
@@ -322,7 +324,8 @@ function BalancEApp() {
           data: {
             answers,
             freeText,
-            questions: QUESTIONS.map((q) => ({
+            lang,
+            questions: questions.map((q) => ({
               prompt: q.prompt,
               options: q.options,
               tiers: q.tiers,
@@ -353,17 +356,19 @@ function BalancEApp() {
         setStage({ kind: "result", bValue: res.bValue, analysis: res.analysis, savedId });
       } catch (e) {
         if (cancelled) return;
-        const message = e instanceof Error ? e.message : "分析失敗，請再試一次。";
+        const message = e instanceof Error
+          ? e.message
+          : lang === "en" ? "Analysis failed. Please try again." : "分析失敗，請再試一次。";
         setStage({ kind: "error", message });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [stage, analyze, answers, freeText]);
+  }, [stage, analyze, answers, freeText, lang, questions]);
 
   const restart = () => {
-    setAnswers(Array(QUESTIONS.length).fill(-1));
+    setAnswers(Array(QUESTIONS_ZH.length).fill(-1));
     setFreeText("");
     setStage({ kind: "intro" });
   };
@@ -373,6 +378,7 @@ function BalancEApp() {
       className="min-h-screen w-full"
       style={{ backgroundColor: BG, color: INK, fontFamily: "'Noto Serif TC', serif" }}
     >
+      <LangToggle lang={lang} onChange={setLang} />
       {stage.kind === "gallery" ? (
         <GalleryScreen onRestart={restart} highlightId={undefined} />
       ) : (
@@ -387,14 +393,14 @@ function BalancEApp() {
           {stage.kind === "question" && (
             <QuestionScreen
               index={stage.index}
-              question={QUESTIONS[stage.index]}
+              question={questions[stage.index]}
               selected={answers[stage.index]}
               onSelect={(opt) => {
                 const next = [...answers];
                 next[stage.index] = opt;
                 setAnswers(next);
                 setTimeout(() => {
-                  if (stage.index + 1 < QUESTIONS.length) {
+                  if (stage.index + 1 < questions.length) {
                     setStage({ kind: "question", index: stage.index + 1 });
                   } else {
                     setStage({ kind: "free" });
@@ -411,9 +417,10 @@ function BalancEApp() {
 
           {stage.kind === "free" && (
             <FreeScreen
+              lang={lang}
               value={freeText}
               onChange={setFreeText}
-              onBack={() => setStage({ kind: "question", index: QUESTIONS.length - 1 })}
+              onBack={() => setStage({ kind: "question", index: questions.length - 1 })}
               onResults={() => setStage({ kind: "loading" })}
             />
           )}
@@ -422,6 +429,7 @@ function BalancEApp() {
 
           {stage.kind === "result" && (
             <ResultScreen
+              lang={lang}
               shade={shadeForB(stage.bValue)}
               analysis={stage.analysis}
               onGallery={() => setStage({ kind: "gallery" })}
