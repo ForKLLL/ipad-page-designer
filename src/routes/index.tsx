@@ -29,7 +29,9 @@ type Question = {
   tiers: number[];
 };
 
-const QUESTIONS: Question[] = [
+type Lang = "zh" | "en";
+
+const QUESTIONS_ZH: Question[] = [
   {
     prompt: "你負責的重要項目在最後關頭突然出現重大失誤，一般而言你怎樣應對?",
     options: [
@@ -131,6 +133,133 @@ const QUESTIONS: Question[] = [
     tiers: [10, 40, 70, 100],
   },
 ];
+
+const QUESTIONS_EN: Question[] = [
+  {
+    prompt: "A critical project you lead suddenly hits a major failure at the last moment. What do you typically do?",
+    options: [
+      "Cut off all personal emotion immediately and enter a purely rational mode.",
+      "Feel intensely anxious inside, but keep it together on the surface and push through by sheer will.",
+      "Accept that things go wrong — plans never survive contact with reality — and adapt to whatever's in front of me.",
+      "See no point in shouldering it alone; ask people around me for help and figure it out together.",
+    ],
+    tiers: [20, 40, 70, 90],
+  },
+  {
+    prompt: "In a team, the role you usually play is:",
+    options: [
+      "The decision-maker who sets the direction.",
+      "The reliable executor doing the concrete, practical work.",
+      "The mediator who balances everyone's emotions and interests.",
+      "The spark who brings ideas and keeps the mood light and energetic.",
+    ],
+    tiers: [10, 30, 60, 90],
+  },
+  {
+    prompt: "When facing a significant personal decision, you tend to:",
+    options: [
+      "Think it through alone, without discussing it with anyone.",
+      "Collect objective facts and judge by logic.",
+      "Consult a few trusted voices, then weigh it myself.",
+      "Ask widely for others' views, then follow my intuition.",
+    ],
+    tiers: [10, 30, 60, 90],
+  },
+  {
+    prompt: "How do you handle your fear of losing control?",
+    options: [
+      "Build strict rules for myself to keep the unknown out.",
+      "Prepare multiple contingency plans; readiness offsets unease.",
+      "Accept that some things are uncontrollable and focus on what I can affect.",
+      "See loss of control as part of experience — I'm willing to embrace it.",
+    ],
+    tiers: [10, 30, 70, 100],
+  },
+  {
+    prompt: "Which mode of socializing suits you best?",
+    options: [
+      "Very little; I guard my personal space absolutely.",
+      "Selective — I stay in touch with only a few close people.",
+      "Moderate — a mix of close relationships and casual contact.",
+      "Wide-open — I enjoy new faces and easy conversation.",
+    ],
+    tiers: [0, 30, 70, 100],
+  },
+  {
+    prompt: "Your attitude toward sadness or low moods is:",
+    options: [
+      "They're part of my strength; I'm willing to sit alone inside them.",
+      "They need to be managed rationally and not disturb daily order.",
+      "They can stay a while, then I let them leave gently.",
+      "I prefer to shift attention quickly through something cheerful.",
+    ],
+    tiers: [0, 30, 70, 90],
+  },
+  {
+    prompt: "When you're completely alone with nothing to do, you usually:",
+    options: [
+      "Sink into your inner world — thoughts churning or drifting into blankness.",
+      "Plan what's next and keep things ordered.",
+      "Relax without indulging; enjoy the quiet time with yourself.",
+      "Feel uneasy and reach for something to do or someone to talk to.",
+    ],
+    tiers: [10, 40, 70, 100],
+  },
+  {
+    prompt: "If you kept a journal, its style would most likely be:",
+    options: [
+      "Private and dense, full of metaphor and deep emotion.",
+      "A steady log of events and reflections.",
+      "Everyday observations in an even, calm voice.",
+      "Light lists or scattered sparks of inspiration.",
+    ],
+    tiers: [0, 30, 60, 90],
+  },
+  {
+    prompt: "Facing someone else's strong emotion (anger, tears), you usually:",
+    options: [
+      "Stay silent — neither intervening nor responding.",
+      "Analyze the cause rationally and propose a solution.",
+      "Listen actively, empathize, and respond through presence.",
+      "Try to lighten the mood with an easier topic.",
+    ],
+    tiers: [10, 30, 70, 90],
+  },
+  {
+    prompt: "Your ideal 'inner calm' is more like:",
+    options: [
+      "The stillness of the deep sea — calm surface, hidden currents below.",
+      "A mirror-flat lake, reflecting everything clearly.",
+      "A murmuring stream — continuous and gentle.",
+      "A clear sky — no clouds, no wind.",
+    ],
+    tiers: [10, 40, 70, 100],
+  },
+];
+
+function getQuestions(lang: Lang): Question[] {
+  return lang === "en" ? QUESTIONS_EN : QUESTIONS_ZH;
+}
+
+const FREE_PROMPT: Record<Lang, string> = {
+  zh: "請用一段話描述你心中理想的「平衡」狀態。可以是一個場景、一種感覺、一個比喻，或者你曾經體驗過的某個瞬間。",
+  en: "In a short paragraph, describe your ideal state of 'balance.' It can be a scene, a feeling, a metaphor, or a moment you've actually experienced.",
+};
+
+const FREE_PLACEHOLDER: Record<Lang, string> = {
+  zh: "平衡是……",
+  en: "Balance is…",
+};
+
+const RESULT_TITLE: Record<Lang, string> = {
+  zh: "分析結果",
+  en: "Your Result",
+};
+
+const ERROR_TITLE: Record<Lang, string> = {
+  zh: "分析暫時無法完成",
+  en: "Analysis couldn't finish",
+};
 
 type Shade = {
   bValue: number;
