@@ -629,13 +629,13 @@ function FreeScreen({
         className="mt-10 text-[22px] leading-[1.7] sm:mt-14 sm:text-[26px]"
         style={{ fontWeight: 600 }}
       >
-        請用一段話描述你心中理想的「平衡」狀態。可以是一個場景、一種感覺、一個比喻，或者你曾經體驗過的某個瞬間。
+        {FREE_PROMPT[lang]}
       </h2>
 
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value.slice(0, 120))}
-        placeholder="平衡是……"
+        placeholder={FREE_PLACEHOLDER[lang]}
         className="mt-10 w-full resize-none bg-transparent p-7 text-[18px] leading-[1.8] outline-none"
         style={{
           border: `1px solid ${INK}55`,
