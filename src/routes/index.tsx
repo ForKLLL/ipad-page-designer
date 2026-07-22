@@ -1056,9 +1056,9 @@ function GalleryScreen({
             let displaced: SavedResult | null = null;
             if (idx === -1) {
               idx = 0;
-              let oldestTs = Date.parse(prev[0]!.created_at);
+              let oldestTs = Date.parse(prev[0]!.created_at ?? "");
               for (let i = 1; i < prev.length; i++) {
-                const t = Date.parse(prev[i]!.created_at);
+                const t = Date.parse(prev[i]!.created_at ?? "");
                 if (t < oldestTs) {
                   oldestTs = t;
                   idx = i;
