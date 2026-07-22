@@ -1,17 +1,13 @@
+## Problem
+
+The gallery already subscribes to INSERTs on `public.results` via a Supabase Realtime channel, but the table isn't in the `supabase_realtime` publication — so no events are broadcast and new submissions only appear after a manual refresh.
+
 ## Change
 
-In `src/routes/index.tsx`, the gallery card header currently shows `B={result.b_value}` (top-right of each scattered card). Replace it with the submission date formatted as `DD/MM`, derived from `result.created_at`.
+Add a one-line migration that enables Realtime for the results table:
 
-- Format: two-digit day, slash, two-digit month (e.g. `21/07`). No year, no time.
-- Keep the same JetBrains Mono styling, font size, letter-spacing, and opacity so the visual weight is identical.
-- No changes to the result screen (it doesn't display B), the database, the analysis prompt, or any other UI.
-
-### Technical detail
-
-Around line 1197, swap:
-
-```tsx
-B={result.b_value}
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.results;
 ```
 
-for a small inline formatter reading `result.created_at` (already selected in the gallery query) and rendering `dd/MM`. Guard against a missing/invalid date by falling back to an empty string.
+No frontend changes needed — the existing subscription in `GalleryScreen` (src/routes/index.tsx ~line 1042) will start receiving INSERT events immediately, prepending new cards with the falling animation as participants submit.
