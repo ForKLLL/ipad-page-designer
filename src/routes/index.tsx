@@ -913,25 +913,52 @@ function ErrorScreen({
 
 /* ---------------- gallery ---------------- */
 
-type CardLayout = {
-  id: string;
-  result: SavedResult;
-};
-
 const CARD_W = 150;
 const CARD_H = 210;
 const GAP_X = 22;
 const GAP_Y = 28;
 const EDGE_PAD = 24;
 
-// Reserved rectangle (in cells) at the top-center for the huge logo.
-const LOGO_ROWS = 2;
-const LOGO_COLS_HINT = 3;
+const SCREEN_W = EDGE_PAD * 2 + 4 * CARD_W + 3 * GAP_X;
+const SCREEN_H = EDGE_PAD * 2 + 3 * CARD_H + 2 * GAP_Y;
+
+// 8 fixed on-screen slots (top: 4, middle: 2 flanking logo, bottom: 2 under logo)
+const SLOT_POSITIONS: { x: number; y: number }[] = [
+  { x: EDGE_PAD + 0 * (CARD_W + GAP_X), y: EDGE_PAD },
+  { x: EDGE_PAD + 1 * (CARD_W + GAP_X), y: EDGE_PAD },
+  { x: EDGE_PAD + 2 * (CARD_W + GAP_X), y: EDGE_PAD },
+  { x: EDGE_PAD + 3 * (CARD_W + GAP_X), y: EDGE_PAD },
+  { x: EDGE_PAD + 0 * (CARD_W + GAP_X), y: EDGE_PAD + (CARD_H + GAP_Y) },
+  { x: EDGE_PAD + 3 * (CARD_W + GAP_X), y: EDGE_PAD + (CARD_H + GAP_Y) },
+  { x: EDGE_PAD + 1 * (CARD_W + GAP_X), y: EDGE_PAD + 2 * (CARD_H + GAP_Y) },
+  { x: EDGE_PAD + 2 * (CARD_W + GAP_X), y: EDGE_PAD + 2 * (CARD_H + GAP_Y) },
+];
+
+const LOGO_BOX = {
+  x: EDGE_PAD + (CARD_W + GAP_X),
+  y: EDGE_PAD + (CARD_H + GAP_Y),
+  w: 2 * CARD_W + GAP_X,
+  h: CARD_H,
+};
+
+const HISTORY_TOP_Y = EDGE_PAD;
+const HISTORY_BOT_Y = EDGE_PAD + 2 * (CARD_H + GAP_Y);
 
 function hashId(id: string): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
   return Math.abs(h);
+}
+
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const out = [...arr];
+  let s = seed || 1;
+  for (let i = out.length - 1; i > 0; i--) {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    const j = s % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 type Placed = {
@@ -942,64 +969,30 @@ type Placed = {
   delay: number;
   spinFrom: number;
   result: SavedResult;
+  isNew: boolean;
 };
 
-function computePlacements(cards: CardLayout[], viewportW: number) {
-  const usableW = Math.max(viewportW, CARD_W + EDGE_PAD * 2);
-  const colsCount = Math.max(
-    3,
-    Math.floor((usableW - EDGE_PAD * 2 + GAP_X) / (CARD_W + GAP_X)),
-  );
-  const logoCols = Math.min(LOGO_COLS_HINT, Math.max(1, colsCount - 2));
-  const centerColStart = Math.floor((colsCount - logoCols) / 2);
-  const centerColEnd = centerColStart + logoCols - 1;
-
-  const slots: { row: number; col: number }[] = [];
-  let row = 0;
-  while (slots.length < cards.length) {
-    for (let col = 0; col < colsCount; col++) {
-      const inLogoZone =
-        row < LOGO_ROWS && col >= centerColStart && col <= centerColEnd;
-      if (inLogoZone) continue;
-      slots.push({ row, col });
-      if (slots.length >= cards.length) break;
-    }
-    row++;
-    if (row > 400) break;
-  }
-
-  const rowsUsed = slots.length ? slots[slots.length - 1].row + 1 : LOGO_ROWS;
-  const totalRows = Math.max(rowsUsed, LOGO_ROWS + 1);
-  const gridWidth = colsCount * CARD_W + (colsCount - 1) * GAP_X;
-  const offsetX = Math.max(EDGE_PAD, (usableW - gridWidth) / 2);
-  const height = totalRows * CARD_H + (totalRows - 1) * GAP_Y + EDGE_PAD * 2;
-
-  const placements: Placed[] = cards.map((c, i) => {
-    const slot = slots[i] ?? { row: 0, col: 0 };
-    const seed = hashId(c.id || String(i));
-    const jitterRange = 14;
-    const jitterX = (seed % (jitterRange * 2)) - jitterRange;
-    const jitterY = (((seed >> 5) % (jitterRange * 2)) - jitterRange) * 0.6;
-    const rot = ((seed >> 9) % 20) - 10;
-    const spinFrom = ((seed >> 13) % 60) * (seed & 1 ? -1 : 1) - 40;
-    const delay = Math.min(i * 0.07, 2.4);
-    const x = offsetX + slot.col * (CARD_W + GAP_X) + jitterX;
-    const y = EDGE_PAD + slot.row * (CARD_H + GAP_Y) + jitterY;
-    return { id: c.id, x, y, rot, delay, spinFrom, result: c.result };
-  });
-
-  const logoX =
-    offsetX + centerColStart * (CARD_W + GAP_X) - GAP_X / 2;
-  const logoW =
-    logoCols * CARD_W + (logoCols - 1) * GAP_X + GAP_X;
-  const logoY = EDGE_PAD;
-  const logoH = LOGO_ROWS * CARD_H + (LOGO_ROWS - 1) * GAP_Y;
-
+function decorate(
+  result: SavedResult,
+  x: number,
+  y: number,
+  isNew: boolean,
+): Placed {
+  const seed = hashId(result.id);
+  const jitterRange = 10;
+  const jitterX = (seed % (jitterRange * 2)) - jitterRange;
+  const jitterY = (((seed >> 5) % (jitterRange * 2)) - jitterRange) * 0.6;
+  const rot = ((seed >> 9) % 18) - 9;
+  const spinFrom = ((seed >> 13) % 60) * (seed & 1 ? -1 : 1) - 40;
   return {
-    placements,
-    height,
-    canvasWidth: Math.max(usableW, offsetX * 2 + gridWidth),
-    logo: { x: logoX, y: logoY, w: logoW, h: logoH },
+    id: result.id,
+    x: x + jitterX,
+    y: y + jitterY,
+    rot,
+    delay: 0,
+    spinFrom,
+    result,
+    isNew,
   };
 }
 
@@ -1009,18 +1002,14 @@ function GalleryScreen({
   onRestart: () => void;
   highlightId?: string;
 }) {
-  const [cards, setCards] = useState<CardLayout[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const seenIds = useRef<Set<string>>(new Set());
-  const [viewportW, setViewportW] = useState<number>(() =>
-    typeof window === "undefined" ? 1200 : window.innerWidth,
+  const [slots, setSlots] = useState<(SavedResult | null)[]>(() =>
+    Array(8).fill(null),
   );
-
-  useEffect(() => {
-    const onResize = () => setViewportW(window.innerWidth);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+  const [history, setHistory] = useState<SavedResult[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [newIds, setNewIds] = useState<Set<string>>(() => new Set());
+  const seenIds = useRef<Set<string>>(new Set());
+  const scrollerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -1028,14 +1017,22 @@ function GalleryScreen({
       const { data } = await supabase
         .from("results")
         .select("id, b_value, shade_name, hex, analysis, created_at")
-        .order("created_at", { ascending: false })
-        .limit(120);
+        .order("created_at", { ascending: false });
       if (!mounted) return;
-      const layouts = (data ?? []).map((r) => {
-        seenIds.current.add(r.id);
-        return { id: r.id, result: r as SavedResult };
+      const rows = (data ?? []) as SavedResult[];
+      rows.forEach((r) => seenIds.current.add(r.id));
+      const initial = rows.slice(0, 8);
+      const rest = rows.slice(8); // desc; rest[0] = closest to screen
+      const shuffled = seededShuffle(
+        initial,
+        hashId(initial[0]?.id ?? "balance-seed"),
+      );
+      const newSlots: (SavedResult | null)[] = Array(8).fill(null);
+      shuffled.forEach((r, i) => {
+        newSlots[i] = r;
       });
-      setCards(layouts);
+      setSlots(newSlots);
+      setHistory(rest);
       setLoaded(true);
     })();
 
@@ -1048,7 +1045,35 @@ function GalleryScreen({
           const r = payload.new as SavedResult;
           if (seenIds.current.has(r.id)) return;
           seenIds.current.add(r.id);
-          setCards((prev) => [{ id: r.id, result: r }, ...prev]);
+          setNewIds((prev) => {
+            const next = new Set(prev);
+            next.add(r.id);
+            return next;
+          });
+          setSlots((prev) => {
+            // prefer any empty slot
+            let idx = prev.findIndex((s) => s === null);
+            let displaced: SavedResult | null = null;
+            if (idx === -1) {
+              idx = 0;
+              let oldestTs = Date.parse(prev[0]!.created_at ?? "");
+              for (let i = 1; i < prev.length; i++) {
+                const t = Date.parse(prev[i]!.created_at ?? "");
+                if (t < oldestTs) {
+                  oldestTs = t;
+                  idx = i;
+                }
+              }
+              displaced = prev[idx];
+            }
+            const next = [...prev];
+            next[idx] = r;
+            if (displaced) {
+              const d = displaced;
+              setHistory((h) => [d, ...h]);
+            }
+            return next;
+          });
         },
       )
       .subscribe();
@@ -1059,15 +1084,44 @@ function GalleryScreen({
     };
   }, []);
 
-  const { placements, height, canvasWidth, logo } = useMemo(
-    () => computePlacements(cards, viewportW),
-    [cards, viewportW],
-  );
+  const historyCols = Math.ceil(history.length / 2);
+  const historyWidth = historyCols * (CARD_W + GAP_X);
+  const canvasWidth = historyWidth + SCREEN_W;
+
+  const placements: Placed[] = useMemo(() => {
+    const out: Placed[] = [];
+    slots.forEach((r, i) => {
+      if (!r) return;
+      const pos = SLOT_POSITIONS[i];
+      out.push(
+        decorate(r, historyWidth + pos.x, pos.y, newIds.has(r.id)),
+      );
+    });
+    history.forEach((r, i) => {
+      const col = Math.floor(i / 2);
+      const row = i % 2;
+      const x =
+        historyWidth - (col + 1) * (CARD_W + GAP_X) + EDGE_PAD;
+      const y = row === 0 ? HISTORY_TOP_Y : HISTORY_BOT_Y;
+      out.push(decorate(r, x, y, false));
+    });
+    return out;
+  }, [slots, history, historyWidth, newIds]);
+
+  // snap to the right (newest) on load and on every insert
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollLeft = el.scrollWidth;
+  }, [canvasWidth, slots, history]);
+
+  const onScreenCount = slots.filter(Boolean).length;
+  const totalCount = onScreenCount + history.length;
 
   return (
     <div
-      className="relative min-h-screen w-full overflow-x-hidden"
-      style={{ backgroundColor: BG, color: INK }}
+      className="relative min-h-screen w-full"
+      style={{ backgroundColor: BG, color: INK, overflow: "hidden" }}
     >
       {/* top bar */}
       <div className="relative z-30 flex items-center justify-between px-8 py-6">
@@ -1085,37 +1139,44 @@ function GalleryScreen({
           className="text-[13px] opacity-60"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
-          {loaded ? `${cards.length} balances landed` : "loading…"}
+          {loaded ? `${totalCount} balances landed` : "loading…"}
         </div>
       </div>
 
-      {/* scatter canvas */}
+      {/* horizontally scrolling strip */}
       <div
+        ref={scrollerRef}
         className="relative mx-auto"
         style={{
-          width: canvasWidth,
-          maxWidth: "100%",
-          height,
+          width: "100%",
+          maxWidth: SCREEN_W,
+          height: SCREEN_H,
+          overflowX: "auto",
+          overflowY: "hidden",
         }}
       >
         <div
-          className="pointer-events-none absolute z-[1] flex items-center justify-center"
-          style={{
-            left: logo.x,
-            top: logo.y,
-            width: logo.w,
-            height: logo.h,
-          }}
+          className="relative"
+          style={{ width: canvasWidth, height: SCREEN_H }}
         >
-          <SplitWaveLogo size={`${Math.min(logo.w, 720)}px`} />
+          {/* logo, fixed inside the visible screen area (at right end of canvas) */}
+          <div
+            className="pointer-events-none absolute z-[1] flex items-center justify-center"
+            style={{
+              left: historyWidth + LOGO_BOX.x,
+              top: LOGO_BOX.y,
+              width: LOGO_BOX.w,
+              height: LOGO_BOX.h,
+            }}
+          >
+            <SplitWaveLogo size={`${Math.min(LOGO_BOX.w, 420)}px`} />
+          </div>
+
+          {placements.map((p) => (
+            <ScatteredCard key={p.id} placed={p} />
+          ))}
         </div>
-
-        {placements.map((p) => (
-          <ScatteredCard key={p.id} placed={p} />
-        ))}
       </div>
-
-      <div className="pb-16" />
 
       <style>{`
         @keyframes cardFall {
