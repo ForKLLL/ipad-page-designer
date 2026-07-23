@@ -38,8 +38,8 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 
 【Input 數據處理邏輯】
 - 選擇題通常對應不同程度的心理傾向（從防禦／內斂／暗調 → 敞開／外放／亮調）。
-- 使用者訊息會提供【選擇題彙總】平均 B 值與對應 Hex，這是主要錨點：最終 Hex 的 B 值必須落在此平均 ±15 以內。
-- 只有當第 11 題（開放題）與選擇題出現「強烈且明確」的方向性矛盾時，才可在錨點基礎上位移一階（±10），且必須在分析中誠實指出這個張力。不得因為「務實 / 內斂 / 沉穩」等泛用形容就往 #4D4D4D 收攏——請根據錨點忠實對應。
+- 使用者訊息會提供【綜合錨點】（選擇題平均 B 與開放題估計 B 的加權平均，權重 2:1），這是主要錨點：最終 Hex 的 B 值必須落在此綜合錨點 ±20 以內。
+- 開放題的方向性已透過綜合錨點反映，請根據綜合錨點忠實對應，不得因為「務實 / 內斂 / 沉穩」等泛用形容就往 #4D4D4D 收攏。若開放題與選擇題出現明顯張力，請在分析中誠實指出，但最終 Hex 仍需落在綜合錨點 ±20 範圍內。
 - 綜合評估後，得出一個最終的 Hex code。不需要 B 數值。
 - Hex code 只能是這十一種的其中一種：#000000, #1A1A1A, #333333, #4D4D4D, #666666, #808080, #999999, #B3B3B3, #CCCCCC, #E6E6E6, #FFFFFF。
 
@@ -109,7 +109,10 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 請只輸出繁體中文分析文字，不要任何 markdown、標題或額外註解。第一句必須符合格式「你的測驗結果指向了 #XXXXXX [顏色名稱]。」`;
 
 
-function buildUserPrompt(input: z.infer<typeof InputSchema>): string {
+function buildUserPrompt(
+  input: z.infer<typeof InputSchema>,
+  freeTextB: number | null,
+): string {
   const lines: string[] = ["以下為觀眾填答："];
   const picked: number[] = [];
   input.questions.forEach((q, i) => {
@@ -123,19 +126,73 @@ function buildUserPrompt(input: z.infer<typeof InputSchema>): string {
       `Q${i + 1}：${q.prompt}\n  → 選擇：${q.options[a]}（傾向 B≈${q.tiers[a]}）`,
     );
   });
-  const avgB = picked.length
+  const choiceAvgB = picked.length
     ? Math.round(picked.reduce((a, b) => a + b, 0) / picked.length)
     : 50;
-  const snapped = Math.max(0, Math.min(100, Math.round(avgB / 10) * 10));
+
+  const combinedAvgB =
+    freeTextB === null
+      ? choiceAvgB
+      : Math.round((choiceAvgB * 2 + freeTextB) / 3);
+  const snapped = Math.max(0, Math.min(100, Math.round(combinedAvgB / 10) * 10));
+
   lines.push("");
   lines.push(
-    `【選擇題彙總】平均 B ≈ ${avgB}（就近十位對應 Hex：${snappedToHex(snapped)}）。此為主要錨點。`,
+    `【選擇題平均】B ≈ ${choiceAvgB}${
+      freeTextB === null
+        ? "（開放題未填或無法估計，僅以選擇題為依據）"
+        : `；【開放題估計】B ≈ ${freeTextB}`
+    }。`,
+  );
+  lines.push(
+    `【綜合錨點】(2×選擇題 + 1×開放題) 平均 B ≈ ${combinedAvgB}（就近十位對應 Hex：${snappedToHex(snapped)}）。最終 Hex 必須落在此錨點 ±20 內。`,
   );
   lines.push("");
   lines.push(
     `Q11（開放題）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
   );
   return lines.join("\n");
+}
+
+async function classifyFreeTextB(
+  apiKey: string,
+  freeText: string,
+): Promise<number | null> {
+  const trimmed = freeText.trim();
+  if (!trimmed) return null;
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        max_tokens: 10,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You map a short free-text answer about a person's ideal state of 'balance' to a brightness value B on a 0-100 scale, where 0 = heaviest / most inward / darkest and 100 = lightest / most open / brightest. Reply with ONLY a single integer between 0 and 100 (snapped to the nearest 10). No words, no punctuation.",
+          },
+          { role: "user", content: trimmed },
+        ],
+      }),
+    });
+    if (!res.ok) return null;
+    const j = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const raw = j.choices?.[0]?.message?.content?.trim() ?? "";
+    const m = raw.match(/\d{1,3}/);
+    if (!m) return null;
+    const n = parseInt(m[0], 10);
+    if (!Number.isFinite(n)) return null;
+    return Math.max(0, Math.min(100, Math.round(n / 10) * 10));
+  } catch {
+    return null;
+  }
 }
 
 function snappedToHex(b: number): string {
@@ -192,7 +249,10 @@ export const analyzeBalance = createServerFn({ method: "POST" })
       throw new Error("Missing LOVABLE_API_KEY");
     }
 
-    const referenceBlock = await loadReferenceBlock();
+    const [referenceBlock, freeTextB] = await Promise.all([
+      loadReferenceBlock(),
+      classifyFreeTextB(apiKey, data.freeText),
+    ]);
     const langDirective =
       data.lang === "en"
         ? `\n\n【Output Language Override】Respond in English only. The first sentence MUST follow this exact format: "Your result points to #XXXXXX [Color Name]." (use the color's English name: Pure Black, Near Black, Dark Grey, Deep Grey, Mid-Dark Grey, Mid Grey, Standard Grey, Light-Mid Grey, Light Grey, Bright Grey, Pale Grey, Pure White). Keep the same three-tier structure (Mechanism / Mapping / Fluidity). Keep the entire response strictly under 200 words — self-condense if approaching the limit while still closing all three tiers. Do NOT use Markdown, headings, or extra annotations.`
@@ -210,7 +270,7 @@ export const analyzeBalance = createServerFn({ method: "POST" })
         max_tokens: data.lang === "en" ? 400 : 700,
         messages: [
           { role: "system", content: systemContent },
-          { role: "user", content: buildUserPrompt(data) },
+          { role: "user", content: buildUserPrompt(data, freeTextB) },
         ],
       }),
     });
