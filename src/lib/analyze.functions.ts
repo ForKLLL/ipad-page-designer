@@ -146,7 +146,7 @@ function buildUserPrompt(
     }。`,
   );
   lines.push(
-    `【綜合錨點】(2×選擇題 + 1×開放題) 平均 B ≈ ${combinedAvgB}（就近十位對應 Hex：${snappedToHex(snapped)}）。最終 Hex 必須落在此錨點 ±20 內。`,
+    `【綜合錨點】(2×選擇題 + 1×開放題) 平均 B ≈ ${combinedAvgB}（就近十位對應 Hex：${snappedToHex(snapped)}）。此為**參考起點**，非硬性上下限；請以整體答案圖像為準，若離群答案或 Q11 意象確實改變了整體格式塔，可自由偏離此錨點。最終 Hex 必須是 11 色調色盤中的其中一個。`,
   );
   lines.push("");
   lines.push(
