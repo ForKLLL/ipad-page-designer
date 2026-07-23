@@ -1126,6 +1126,15 @@ function GalleryScreen({
   const [newIds, setNewIds] = useState<Set<string>>(() => new Set());
   const seenIds = useRef<Set<string>>(new Set());
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1280px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  const SCALE = 1.25;
 
   useEffect(() => {
     let mounted = true;
