@@ -1176,23 +1176,26 @@ function GalleryScreen({
             return next;
           });
           setSlots((prev) => {
-            // prefer any empty slot
-            let idx = prev.findIndex((s) => s === null);
-            let displaced: SavedResult | null = null;
-            if (idx === -1) {
-              idx = 0;
-              let oldestTs = Date.parse(prev[0]!.created_at ?? "");
-              for (let i = 1; i < prev.length; i++) {
-                const t = Date.parse(prev[i]!.created_at ?? "");
-                if (t < oldestTs) {
-                  oldestTs = t;
-                  idx = i;
-                }
-              }
-              displaced = prev[idx];
+            // Newest always lands in the rightmost slot.
+            // If any slots are still empty, keep empties on the left and only
+            // shift within the filled portion so the new card takes slot N-1.
+            const firstFilled = prev.findIndex((s) => s !== null);
+            if (firstFilled === -1) {
+              const next: (SavedResult | null)[] = Array(SLOT_COUNT).fill(null);
+              next[SLOT_COUNT - 1] = r;
+              return next;
             }
             const next = [...prev];
-            next[idx] = r;
+            let displaced: SavedResult | null = null;
+            if (firstFilled === 0) {
+              // All slots full — oldest (slot 0) is displaced to history.
+              displaced = next[0];
+            }
+            // Shift left from firstFilled → SLOT_COUNT-1, drop new card in last.
+            for (let i = firstFilled; i < SLOT_COUNT - 1; i++) {
+              next[i] = next[i + 1];
+            }
+            next[SLOT_COUNT - 1] = r;
             if (displaced) {
               const d = displaced;
               setHistory((h) => [d, ...h]);
