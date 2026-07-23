@@ -40,7 +40,7 @@ const QUESTIONS_ZH: Question[] = [
       "覺得出事很正常，計畫本來就趕不上變化，直接順應當下情況去應變",
       "認為沒必要自己死頂，直接向身邊的人尋求協助，大家一起想辦法",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [15, 40, 65, 90],
   },
   {
     prompt: "在團隊合作中，你通常扮演的角色是：",
@@ -50,7 +50,7 @@ const QUESTIONS_ZH: Question[] = [
       "調解者，平衡各方情緒與利益",
       "靈感發起人，帶動輕鬆積極的氛圍",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [10, 45, 65, 90],
   },
   {
     prompt: "當你需要做出個人的重要決定時，你的傾向是：",
@@ -60,7 +60,7 @@ const QUESTIONS_ZH: Question[] = [
       "參考少量可信賴的意見後自己權衡",
       "廣泛征求他人看法，再結合直覺選擇",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [15, 40, 60, 85],
   },
   {
     prompt: "你傾向如何處理內心對「失控」的恐懼?",
@@ -70,7 +70,7 @@ const QUESTIONS_ZH: Question[] = [
       "接受部分不可控，只關注自己能影響的",
       "認為失控也是體驗的一部分，願意擁抱",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [10, 40, 70, 95],
   },
   {
     prompt: "你更喜歡哪種社交狀態?",
@@ -80,7 +80,7 @@ const QUESTIONS_ZH: Question[] = [
       "適度社交，既有親密關係也有普通社交",
       "廣泛社交，喜歡新鮮面孔和輕鬆交流",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [5, 40, 65, 95],
   },
   {
     prompt: "你對「悲傷」或「低落」情緒的態度是：",
@@ -90,7 +90,7 @@ const QUESTIONS_ZH: Question[] = [
       "可以短暫停留，然後溫和地讓它離開",
       "傾向於用快樂活動快速轉移注意力",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [10, 45, 70, 90],
   },
   {
     prompt: "當你處於完全獨處、無事可做的狀態，你通常會：",
@@ -100,7 +100,7 @@ const QUESTIONS_ZH: Question[] = [
       "放鬆但不放縱，享受安靜的自我時間",
       "感到不適，會主動找事做或聯絡他人",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [15, 45, 70, 95],
   },
   {
     prompt: "如果你寫日記，內容風格更可能是：",
@@ -110,7 +110,7 @@ const QUESTIONS_ZH: Question[] = [
       "日常的所見所聞，語氣平和",
       "輕快的清單或零星靈感",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [5, 40, 65, 90],
   },
   {
     prompt: "面對他人的強烈情緒(如憤怒或哭泣)，你通常：",
@@ -120,7 +120,7 @@ const QUESTIONS_ZH: Question[] = [
       "主動傾聽，同理對方情緒，以陪伴回應對方",
       "嘗試用輕鬆話題化解對方情緒",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [10, 40, 70, 90],
   },
   {
     prompt: "你理想中的「內心平靜」更像：",
@@ -130,7 +130,7 @@ const QUESTIONS_ZH: Question[] = [
       "溪流的潺潺，持續而柔和",
       "晴空的通透，無雲也無風",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [15, 45, 70, 95],
   },
 ];
 
@@ -143,7 +143,7 @@ const QUESTIONS_EN: Question[] = [
       "Accept that things go wrong — plans never survive contact with reality — and adapt to whatever's in front of me.",
       "See no point in shouldering it alone; ask people around me for help and figure it out together.",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [15, 40, 65, 90],
   },
   {
     prompt: "In a team, the role you usually play is:",
@@ -153,7 +153,7 @@ const QUESTIONS_EN: Question[] = [
       "The mediator who balances everyone's emotions and interests.",
       "The spark who brings ideas and keeps the mood light and energetic.",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [10, 45, 65, 90],
   },
   {
     prompt: "When facing a significant personal decision, you tend to:",
@@ -163,7 +163,7 @@ const QUESTIONS_EN: Question[] = [
       "Consult a few trusted voices, then weigh it myself.",
       "Ask widely for others' views, then follow my intuition.",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [15, 40, 60, 85],
   },
   {
     prompt: "How do you handle your fear of losing control?",
@@ -173,7 +173,7 @@ const QUESTIONS_EN: Question[] = [
       "Accept that some things are uncontrollable and focus on what I can affect.",
       "See loss of control as part of experience — I'm willing to embrace it.",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [10, 40, 70, 95],
   },
   {
     prompt: "Which mode of socializing suits you best?",
@@ -183,7 +183,7 @@ const QUESTIONS_EN: Question[] = [
       "Moderate — a mix of close relationships and casual contact.",
       "Wide-open — I enjoy new faces and easy conversation.",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [5, 40, 65, 95],
   },
   {
     prompt: "Your attitude toward sadness or low moods is:",
@@ -193,7 +193,7 @@ const QUESTIONS_EN: Question[] = [
       "They can stay a while, then I let them leave gently.",
       "I prefer to shift attention quickly through something cheerful.",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [10, 45, 70, 90],
   },
   {
     prompt: "When you're completely alone with nothing to do, you usually:",
@@ -203,7 +203,7 @@ const QUESTIONS_EN: Question[] = [
       "Relax without indulging; enjoy the quiet time with yourself.",
       "Feel uneasy and reach for something to do or someone to talk to.",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [15, 45, 70, 95],
   },
   {
     prompt: "If you kept a journal, its style would most likely be:",
@@ -213,7 +213,7 @@ const QUESTIONS_EN: Question[] = [
       "Everyday observations in an even, calm voice.",
       "Light lists or scattered sparks of inspiration.",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [5, 40, 65, 90],
   },
   {
     prompt: "Facing someone else's strong emotion (anger, tears), you usually:",
@@ -223,7 +223,7 @@ const QUESTIONS_EN: Question[] = [
       "Listen actively, empathize, and respond through presence.",
       "Try to lighten the mood with an easier topic.",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [10, 40, 70, 90],
   },
   {
     prompt: "Your ideal 'inner calm' is more like:",
@@ -233,7 +233,7 @@ const QUESTIONS_EN: Question[] = [
       "A murmuring stream — continuous and gentle.",
       "A clear sky — no clouds, no wind.",
     ],
-    tiers: [3, 37, 63, 97],
+    tiers: [15, 45, 70, 95],
   },
 ];
 
