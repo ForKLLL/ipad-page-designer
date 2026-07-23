@@ -1038,7 +1038,7 @@ const SCREEN_W = EDGE_PAD * 2 + 4 * CARD_W + 3 * GAP_X;
 const SCREEN_H = EDGE_PAD * 2 + 3 * CARD_H + 2 * GAP_Y;
 
 // 8 fixed on-screen slots (top: 4, middle: 2 flanking logo, bottom: 2 under logo)
-const TOP_ROW_LIFT = 40;
+const TOP_ROW_LIFT = 150;
 const SLOT_POSITIONS: { x: number; y: number }[] = [
   { x: EDGE_PAD + 0 * (CARD_W + GAP_X), y: EDGE_PAD - TOP_ROW_LIFT },
   { x: EDGE_PAD + 1 * (CARD_W + GAP_X), y: EDGE_PAD - TOP_ROW_LIFT },
