@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { analyzeBalance } from "@/lib/analyze.functions";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -1303,7 +1303,7 @@ function GalleryScreen({
               height: LOGO_BOX.h,
             }}
           >
-            <SplitWaveLogo size={`${Math.min(LOGO_BOX.w, 420)}px`} />
+            <SplitWaveLogo size={`${Math.min(LOGO_BOX.w, 420)}px`} animated />
           </div>
 
           {placements.map((p) => (
@@ -1458,18 +1458,66 @@ function ScatteredCard({ placed }: { placed: Placed }) {
 
 /* ---------------- split wave logo ---------------- */
 
-function SplitWaveLogo({ size = "clamp(80px, 14vw, 220px)" }: { size?: string }) {
-  const id = "wave-clip";
+function SplitWaveLogo({
+  size = "clamp(80px, 14vw, 220px)",
+  animated = false,
+}: {
+  size?: string;
+  animated?: boolean;
+}) {
+  const uid = useId().replace(/:/g, "");
+  const clipA = `wave-clip-a-${uid}`;
+  const clipB = `wave-clip-b-${uid}`;
+
+  const waveA1 =
+    "M-30,-15 L550,-15 L550,42 C460,58 370,26 280,42 C190,58 100,26 10,42 L-30,42 Z";
+  const waveA2 =
+    "M-30,-15 L550,-15 L550,44 C460,28 370,60 280,40 C190,22 100,54 10,38 L-30,38 Z";
+  const waveA3 =
+    "M-30,-15 L550,-15 L550,38 C460,54 370,22 280,46 C190,62 100,30 10,44 L-30,44 Z";
+
+  const waveB1 =
+    "M-30,-15 L550,-15 L550,50 C450,34 360,66 270,48 C180,32 90,60 10,46 L-30,46 Z";
+  const waveB2 =
+    "M-30,-15 L550,-15 L550,46 C450,62 360,30 270,50 C180,66 90,34 10,52 L-30,52 Z";
+  const waveB3 =
+    "M-30,-15 L550,-15 L550,52 C450,38 360,58 270,44 C180,30 90,58 10,48 L-30,48 Z";
+
   return (
     <svg
       viewBox="0 0 520 90"
       preserveAspectRatio="xMidYMid meet"
-      className="select-none"
+      className="select-none motion-reduce:[&_animate]:hidden"
       style={{ width: size, height: "auto", display: "block" }}
     >
       <defs>
-        <clipPath id={id}>
-          <path d="M-30,-15 L550,-15 L550,42 C460,58 370,26 280,42 C190,58 100,26 10,42 L-30,42 Z" />
+        <clipPath id={clipA}>
+          <path d={waveA1}>
+            {animated && (
+              <animate
+                attributeName="d"
+                dur="6s"
+                repeatCount="indefinite"
+                values={`${waveA1};${waveA2};${waveA3};${waveA1}`}
+                calcMode="spline"
+                keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0.42 0 0.58 1"
+              />
+            )}
+          </path>
+        </clipPath>
+        <clipPath id={clipB}>
+          <path d={waveB1}>
+            {animated && (
+              <animate
+                attributeName="d"
+                dur="8.5s"
+                repeatCount="indefinite"
+                values={`${waveB1};${waveB2};${waveB3};${waveB1}`}
+                calcMode="spline"
+                keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0.42 0 0.58 1"
+              />
+            )}
+          </path>
         </clipPath>
       </defs>
       <text
@@ -1490,7 +1538,7 @@ function SplitWaveLogo({ size = "clamp(80px, 14vw, 220px)" }: { size?: string })
         x="260"
         y="64"
         textAnchor="middle"
-        clipPath={`url(#${id})`}
+        clipPath={`url(#${clipA})`}
         style={{
           fontFamily: "Inter, sans-serif",
           fontWeight: 900,
@@ -1498,6 +1546,21 @@ function SplitWaveLogo({ size = "clamp(80px, 14vw, 220px)" }: { size?: string })
           letterSpacing: "-0.045em",
         }}
         fill="#cccccc"
+      >
+        BalancE
+      </text>
+      <text
+        x="260"
+        y="64"
+        textAnchor="middle"
+        clipPath={`url(#${clipB})`}
+        style={{
+          fontFamily: "Inter, sans-serif",
+          fontWeight: 900,
+          fontSize: 68,
+          letterSpacing: "-0.045em",
+        }}
+        fill="#e8e8e8"
       >
         BalancE
       </text>
