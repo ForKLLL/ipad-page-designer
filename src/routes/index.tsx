@@ -1126,6 +1126,15 @@ function GalleryScreen({
   const [newIds, setNewIds] = useState<Set<string>>(() => new Set());
   const seenIds = useRef<Set<string>>(new Set());
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1280px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  const SCALE = 1.25;
 
   useEffect(() => {
     let mounted = true;
@@ -1262,14 +1271,23 @@ function GalleryScreen({
       {/* horizontally scrolling strip — vertically centered, scales up on wider screens */}
       <div className="relative flex flex-1 items-start justify-center overflow-hidden px-4" style={{ paddingTop: 56 }}>
         <div
+          style={{
+            width: isDesktop ? SCREEN_W * SCALE : "100%",
+            maxWidth: isDesktop ? SCREEN_W * SCALE : SCREEN_W,
+            height: isDesktop ? SCREEN_H * SCALE : SCREEN_H,
+          }}
+        >
+        <div
           ref={scrollerRef}
           className="relative"
           style={{
-            width: "100%",
+            width: SCREEN_W,
             maxWidth: SCREEN_W,
             height: SCREEN_H,
             overflowX: "auto",
             overflowY: "hidden",
+            transform: isDesktop ? `scale(${SCALE})` : undefined,
+            transformOrigin: "left top",
           }}
         >
         <div
@@ -1292,6 +1310,7 @@ function GalleryScreen({
           {placements.map((p) => (
             <ScatteredCard key={p.id} placed={p} />
           ))}
+        </div>
         </div>
         </div>
       </div>
