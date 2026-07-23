@@ -1,17 +1,34 @@
 ## Goal
-Move the top row of gallery cards higher on the screen.
+Make the gallery cards larger so they use the available iPad viewport more efficiently, while still displaying the full analysis and keeping the 8-card + centered-logo layout intact.
 
-## Current state
-- Gallery constants live in `src/routes/index.tsx` around line 1031.
-- `EDGE_PAD = 20` controls the top padding for the top row.
-- `SCREEN_H` and all slot Y positions are derived from `EDGE_PAD`.
+## Current state (verified from `src/routes/index.tsx`)
+- Gallery cards are `CARD_W = 190` × `CARD_H = 160` px.
+- 8 fixed slots arranged around a centered `SplitWaveLogo`.
+- Analysis text is rendered at 6 px font size.
+- Color swatch is 28 × 28 px.
+- The visible screen area is computed from card/gap/edge constants and rendered inside a horizontally-scrolling strip.
 
-## Plan
-1. Introduce a dedicated `TOP_PAD` constant (smaller than current `EDGE_PAD`, e.g. 8–12 px) so only the top-row vertical origin changes.
-2. Keep `GAP_Y` unchanged so spacing between rows stays consistent.
-3. Recompute `SCREEN_H` and `SLOT_POSITIONS` Y values using the new `TOP_PAD`.
-4. Update `LOGO_BOX` and `HISTORY_*` Y values if they depend on the top origin.
-5. Verify in the preview that the top row sits higher and the 8-card + centered-logo layout still fits cleanly on iPad and desktop.
+## Proposed changes
+1. **Increase card size**
+   - Raise `CARD_W` from 190 → 240 px.
+   - Raise `CARD_H` from 160 → 200 px.
+2. **Recompute layout canvas**
+   - Update `SCREEN_W`, `SCREEN_H`, `LOGO_BOX`, `HISTORY_TOP_Y`, `HISTORY_BOT_Y`, and `SLOT_POSITIONS` using the new card/gap constants so the 8 slots and logo remain aligned.
+3. **Scale typography and inner spacing proportionally**
+   - Color swatch: 28 → 36 px.
+   - Shade name: 10 → 13 px.
+   - Date / hex / mono labels: 5.5 → 7 px.
+   - Analysis body: 6 → 8 px, line-height 1.35 → 1.45 for readability.
+   - Bottom logo: 38 → 48 px.
+   - Divider and padding scaled slightly so the card still feels balanced.
+4. **Keep behavior unchanged**
+   - Still shows newest 8 results on screen; older results flow into the left history lane.
+   - Still displays full analysis text (no truncation).
+   - Real-time subscription, fall animation, and rotation/jitter remain the same.
 
-## File to change
-- `src/routes/index.tsx` (gallery constants and slot positions only).
+## Files touched
+- `src/routes/index.tsx` — update the gallery constants and `ScatteredCard` inner sizes.
+
+## Out of scope
+- No changes to the result analysis, questions, AI prompt, DB, or RLS.
+- No changes to the number of on-screen cards (still 8) or the horizontal-scroll history behavior.
