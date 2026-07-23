@@ -270,7 +270,7 @@ export const analyzeBalance = createServerFn({ method: "POST" })
         max_tokens: data.lang === "en" ? 400 : 700,
         messages: [
           { role: "system", content: systemContent },
-          { role: "user", content: buildUserPrompt(data) },
+          { role: "user", content: buildUserPrompt(data, freeTextB) },
         ],
       }),
     });
