@@ -258,7 +258,7 @@ export const analyzeBalance = createServerFn({ method: "POST" })
     ]);
     const langDirective =
       data.lang === "en"
-        ? `\n\n【Output Language Override】Respond in English only. The first sentence MUST follow this exact format: "Your result points to #XXXXXX [Color Name]." (use the color's English name: Pure Black, Near Black, Dark Grey, Deep Grey, Mid-Dark Grey, Mid Grey, Standard Grey, Light-Mid Grey, Light Grey, Bright Grey, Pale Grey, Pure White). Keep the same three-tier structure (Mechanism / Mapping / Fluidity). Keep the entire response strictly under 200 words — self-condense if approaching the limit while still closing all three tiers. Do NOT use Markdown, headings, or extra annotations.`
+        ? `\n\n【Output Language Override】Respond in English only. The first sentence MUST follow this exact format: "Your result points to #XXXXXX [Color Name]." Use the color's English name mapped strictly as: #000000 Black, #1A1A1A Extreme Dark Grey, #333333 Dark Grey, #4D4D4D Deep Grey, #666666 Medium Grey, #808080 Standard Grey, #999999 Medium Light Grey, #B3B3B3 Light Grey, #CCCCCC Bright Grey, #E6E6E6 Extreme Light Grey, #FFFFFF White. Keep the same three-tier structure (Mechanism / Mapping / Fluidity). Keep the entire response strictly under 200 words — self-condense if approaching the limit while still closing all three tiers. Do NOT use Markdown, headings, or extra annotations.`
         : "";
     const systemContent = SYSTEM_PROMPT + referenceBlock + langDirective;
 
