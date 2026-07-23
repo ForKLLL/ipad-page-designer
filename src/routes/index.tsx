@@ -430,7 +430,7 @@ function BalancEApp() {
               onBack={
                 stage.index > 0
                   ? () => setStage({ kind: "question", index: stage.index - 1 })
-                  : () => setStage({ kind: "intro" })
+                  : () => setStage({ kind: "mood" })
               }
             />
           )}
