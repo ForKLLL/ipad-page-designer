@@ -1429,7 +1429,7 @@ function ScatteredCard({ placed }: { placed: Placed }) {
           className="flex-1"
           style={{
             fontFamily: "'Noto Serif TC', serif",
-            fontSize: 8,
+            fontSize: 10,
             lineHeight: 1.45,
             color: "rgba(11,11,11,0.82)",
             textAlign: "justify",
