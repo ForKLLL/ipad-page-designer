@@ -1029,11 +1029,11 @@ function ErrorScreen({
 /* ---------------- gallery ---------------- */
 
 const CARD_W = 240;
-const CARD_H = 460;
+const CARD_H = 540;
 const GAP_X = 72;
 const EDGE_PAD = 20;
 const SLOT_COUNT = 4;
-const Y_JITTER = 8;
+const Y_JITTER = 4;
 
 const SCREEN_W = EDGE_PAD * 2 + SLOT_COUNT * CARD_W + (SLOT_COUNT - 1) * GAP_X;
 const SCREEN_H = EDGE_PAD * 2 + CARD_H + Y_JITTER * 2;
@@ -1353,7 +1353,7 @@ function ScatteredCard({ placed }: { placed: Placed }) {
         left: x,
         top: y,
         width: CARD_W,
-        height: CARD_H,
+        minHeight: CARD_H,
         transformOrigin: "50% 55%",
         ["--rot" as never]: `${rot}deg`,
         ["--spin-from" as never]: `${spinFrom}deg`,
@@ -1433,7 +1433,6 @@ function ScatteredCard({ placed }: { placed: Placed }) {
             color: "rgba(11,11,11,0.82)",
             textAlign: "justify",
             whiteSpace: "pre-wrap",
-            overflow: "hidden",
           }}
         >
           {result.analysis}
