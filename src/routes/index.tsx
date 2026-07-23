@@ -307,12 +307,14 @@ type SavedResult = {
 
 type Stage =
   | { kind: "intro" }
+  | { kind: "mood" }
   | { kind: "question"; index: number }
   | { kind: "free" }
   | { kind: "loading" }
   | { kind: "result"; bValue: number; analysis: string; savedId?: string }
   | { kind: "gallery" }
   | { kind: "error"; message: string };
+
 
 const BG = "#f2efee";
 const INK = "#0b0b0b";
@@ -395,10 +397,18 @@ function BalancEApp() {
         <div className="mx-auto flex min-h-screen max-w-[1180px] flex-col px-10 py-10 sm:px-14 sm:py-14">
           {stage.kind === "intro" && (
             <Intro
-              onBegin={() => setStage({ kind: "question", index: 0 })}
+              onBegin={() => setStage({ kind: "mood" })}
               onGallery={() => setStage({ kind: "gallery" })}
             />
           )}
+
+          {stage.kind === "mood" && (
+            <MoodScreen
+              lang={lang}
+              onContinue={() => setStage({ kind: "question", index: 0 })}
+            />
+          )}
+
 
           {stage.kind === "question" && (
             <QuestionScreen
@@ -420,7 +430,7 @@ function BalancEApp() {
               onBack={
                 stage.index > 0
                   ? () => setStage({ kind: "question", index: stage.index - 1 })
-                  : () => setStage({ kind: "intro" })
+                  : () => setStage({ kind: "mood" })
               }
             />
           )}
@@ -509,6 +519,111 @@ function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => voi
 }
 
 /* ---------------- screens ---------------- */
+
+const MOOD_HEXES = [
+  "#000000", "#1A1A1A", "#333333", "#4D4D4D", "#666666",
+  "#808080",
+  "#999999", "#B3B3B3", "#CCCCCC", "#E6E6E6", "#FFFFFF",
+];
+
+function MoodScreen({ lang, onContinue }: { lang: Lang; onContinue: () => void }) {
+  const [picked, setPicked] = useState<string | null>(null);
+  const heading =
+    lang === "en"
+      ? "Before we begin, pick the shade closest to your current inner state"
+      : "開始前，請選擇你現在的內心狀態更接近的顏色";
+  const sub = lang === "en" ? "(this does not affect your result)" : "（不影響結果）";
+  const cta = lang === "en" ? "Continue →" : "繼續 →";
+
+  const handlePick = (hex: string) => {
+    if (picked) return;
+    setPicked(hex);
+    setTimeout(onContinue, 320);
+  };
+
+  const swatch = (hex: string) => {
+    const isPicked = picked === hex;
+    const isWhite = hex.toUpperCase() === "#FFFFFF";
+    return (
+      <button
+        key={hex}
+        onClick={() => handlePick(hex)}
+        aria-label={hex}
+        style={{
+          width: "clamp(56px, 8.5vw, 104px)",
+          height: "clamp(56px, 8.5vw, 104px)",
+          backgroundColor: hex,
+          border: isPicked
+            ? `2px solid ${INK}`
+            : isWhite
+              ? `1px solid ${INK}33`
+              : "1px solid transparent",
+          outline: isPicked ? `2px solid ${INK}` : "none",
+          outlineOffset: 4,
+          transition: "transform 0.18s ease, outline-offset 0.18s ease, opacity 0.18s",
+          transform: isPicked ? "scale(1.06)" : "scale(1)",
+          opacity: picked && !isPicked ? 0.35 : 1,
+          cursor: picked ? "default" : "pointer",
+        }}
+      />
+    );
+  };
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <div
+        className="mt-6 text-center"
+        style={{
+          fontFamily: lang === "en" ? "'Noto Serif TC', serif" : "'Noto Serif TC', serif",
+          fontSize: "clamp(18px, 2.2vw, 26px)",
+          lineHeight: 1.7,
+        }}
+      >
+        <div>{heading}</div>
+        <div>{sub}</div>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-[clamp(24px,3.5vw,44px)] py-10">
+        <div className="flex items-center gap-[clamp(16px,2.4vw,32px)]">
+          {MOOD_HEXES.slice(0, 5).map(swatch)}
+        </div>
+        <div className="flex items-center gap-[clamp(16px,2.4vw,32px)]">
+          {swatch(MOOD_HEXES[5])}
+        </div>
+        <div className="flex items-center gap-[clamp(16px,2.4vw,32px)]">
+          {MOOD_HEXES.slice(6).map(swatch)}
+        </div>
+      </div>
+
+      <div className="flex items-end justify-between">
+        <button
+          onClick={onContinue}
+          className="text-[13px] transition-opacity hover:opacity-60"
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            letterSpacing: "0.08em",
+            opacity: picked ? 1 : 0.5,
+          }}
+        >
+          {cta}
+        </button>
+        <h1
+          className="leading-none tracking-tight"
+          style={{
+            fontFamily: "Inter, sans-serif",
+            fontWeight: 900,
+            fontSize: "clamp(56px, 9vw, 140px)",
+            letterSpacing: "-0.04em",
+          }}
+        >
+          BalancE
+        </h1>
+      </div>
+    </div>
+  );
+}
+
+
 
 function Intro({ onBegin, onGallery }: { onBegin: () => void; onGallery: () => void }) {
   return (
