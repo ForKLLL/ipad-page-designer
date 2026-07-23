@@ -59,7 +59,7 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 - 平衡特質：內省與行動的平衡點，能冷靜地規劃一切。
 
 #4D4D4D (B=30) 中暗灰 · 堅忍、務實
-- 深灰偏好者常表現務實、不希望給自己找麻煩；從明度情緒曲線看，進入「低積極／低消極」區域，像情緒上的起點，蓄勢待發。
+- 保有明顯的內斂與克制，同時開始向外釋放少許重量；不是「預設安全牌」，而是清楚選擇把重心放在低調而穩定的一側。
 - 平衡特質：深藏不露的代表，在自我克制與外界反應間找到務實平衡。
 
 #666666 (B=40) 中灰 · 穩健、緩衝
@@ -111,21 +111,40 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 
 function buildUserPrompt(input: z.infer<typeof InputSchema>): string {
   const lines: string[] = ["以下為觀眾填答："];
+  const picked: number[] = [];
   input.questions.forEach((q, i) => {
     const a = input.answers[i];
     if (a < 0) {
       lines.push(`Q${i + 1}（未作答）：${q.prompt}`);
       return;
     }
+    picked.push(q.tiers[a]);
     lines.push(
       `Q${i + 1}：${q.prompt}\n  → 選擇：${q.options[a]}（傾向 B≈${q.tiers[a]}）`,
     );
   });
+  const avgB = picked.length
+    ? Math.round(picked.reduce((a, b) => a + b, 0) / picked.length)
+    : 50;
+  const snapped = Math.max(0, Math.min(100, Math.round(avgB / 10) * 10));
+  lines.push("");
+  lines.push(
+    `【選擇題彙總】平均 B ≈ ${avgB}（就近十位對應 Hex：${snappedToHex(snapped)}）。此為主要錨點。`,
+  );
   lines.push("");
   lines.push(
     `Q11（開放題）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
   );
   return lines.join("\n");
+}
+
+function snappedToHex(b: number): string {
+  const map: Record<number, string> = {
+    0: "#000000", 10: "#1A1A1A", 20: "#333333", 30: "#4D4D4D",
+    40: "#666666", 50: "#808080", 60: "#999999", 70: "#B3B3B3",
+    80: "#CCCCCC", 90: "#E6E6E6", 100: "#FFFFFF",
+  };
+  return map[b] ?? "#808080";
 }
 
 async function loadReferenceBlock(): Promise<string> {
