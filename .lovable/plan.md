@@ -1,29 +1,42 @@
-## Fix gallery: whole left card + newest-lands-right in order
+## Goal
+Remove the pre-snapped Hex anchor from the model's input so it no longer gravitates toward a specific swatch. Replace it with a coarse direction label plus the raw picked-B distribution, and label each B tier with its color name so the model reasons in color language rather than pattern-matching a single suggested hex.
 
-### Problem
-1. At iPad width (~1139px) the 4-slot strip is ~1216px wide, so the auto scroll-to-right hides the left edge of the leftmost card. Screenshot confirms card 1 is clipped.
-2. New submissions currently fill the first empty slot (leftmost) and, when full, replace the oldest slot in place. The user wants the newest card to always land in the rightmost slot, with earlier cards shifting left in order.
+## Changes (all in `src/lib/analyze.functions.ts`)
 
-### Changes — `src/routes/index.tsx` only
+### 1. Stop pre-snapping the anchor to a Hex
+In `buildUserPrompt`, drop the line that computes `snapped` and prints `就近十位對應 Hex：${snappedToHex(snapped)}`. The combined anchor stays as a raw number (0–100), but no hex is suggested.
 
-1. **Show the whole left card**
-   - Shrink the strip so all 4 cards fit inside the iPad viewport (~1100px usable):
-     - `GAP_X`: 72 → 32
-     - `EDGE_PAD`: 20 → 12
-     - Result: `SCREEN_W = 24 + 4*240 + 3*32 = 1080` (fits ≤1100, no horizontal scroll on iPad).
-   - Desktop scale (≥1280px) already up-scales by 1.25, so cards remain large on PC.
-   - Regenerate `SLOT_POSITIONS` with the new spacing; keep the seeded X/Y jitter.
+### 2. Add a direction bucket instead of a hex
+Derive a coarse label from `combinedAvgB`:
+- `0–29` → "偏暗 / darker"
+- `30–49` → "偏暗中性 / balanced-dark"
+- `50` → "中性 / balanced"
+- `51–70` → "偏亮中性 / balanced-light"
+- `71–100` → "偏亮 / lighter"
 
-2. **Newest lands on the right, in order**
-   - Initial load: place the 4 newest rows (already fetched desc) so that `slots[3]` = newest, `slots[2]` = next, `slots[1]`, `slots[0]` = oldest of the 4. History (older) stays to the left as today.
-   - Realtime INSERT handler: shift the array left — `displaced = slots[0]`; `slots = [slots[1], slots[2], slots[3], newRow]`. If any slot is still `null` (fewer than 4 landed), shift only from the first non-null so empties stay on the left and the new card takes slot 3.
-   - Push `displaced` (if any) to the front of `history` as today, so it slides into the off-screen history lane to the left.
-   - Keep the fall animation + `newIds` highlight for the incoming card.
+Print this direction in place of the hex, wording it as a *tendency*, not a target.
 
-3. **Keep everything else untouched**
-   - Card dimensions (240×540), fonts, jitter feel, logo, history lane math, real-time subscription, scoring, RLS, i18n — all unchanged.
-   - Auto-scroll-to-right stays (only matters once history exists).
+### 3. Show the raw B distribution
+For each answered question, already prints `B≈X`. Add a compact summary line listing all picked B values (e.g. `[10, 67, 42, 92, 42, 67, 10, 42, 67, 92]`), plus min / max / spread so the model can see variance and outliers rather than just the mean.
 
-### Verification
-- Load gallery at 1139×944: all 4 cards fully visible, no clipping.
-- Simulate an insert: newest card falls into the rightmost slot; each prior card moves one slot left; the previous leftmost card slides into the history lane.
+### 4. Name the colors inline with each B tier
+When printing each question's pick and when describing the anchor, append the color name for that B decile. Names come from the existing guide:
+```
+0 Black · 10 Extreme Dark Grey · 20 Dark Grey · 30 Deep Grey ·
+40 Medium Grey · 50 Standard Grey · 60 Medium Light Grey ·
+70 Light Grey · 80 Bright Grey · 90 Extreme Light Grey · 100 White
+```
+So a pick prints as `→ 選擇：… (B≈40, Medium Grey)` and the anchor prints as `方向：balanced-dark（picked average B≈42, near Medium Grey）— 僅為傾向參考，非目標`.
+
+### 5. Tighten the accompanying prompt sentence
+Replace the current "此為參考起點…最終 Hex 必須是 11 色調色盤中的其中一個" sentence with wording that:
+- States the direction + raw distribution are context, not a target,
+- Explicitly says no specific hex is being suggested,
+- Repeats that the final Hex must be one of the 11 palette values.
+
+### 6. Keep `snappedToHex` in the file
+Still used elsewhere/imports; just no longer called from `buildUserPrompt`. (If unused after the edit, remove it.)
+
+## Out of scope
+- No changes to `SYSTEM_PROMPT` guide content, question tiers, free-text classifier, UI, or scoring in `src/routes/index.tsx`.
+- English/Chinese output behavior unchanged.
