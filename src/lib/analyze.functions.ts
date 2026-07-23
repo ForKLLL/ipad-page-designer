@@ -249,7 +249,10 @@ export const analyzeBalance = createServerFn({ method: "POST" })
       throw new Error("Missing LOVABLE_API_KEY");
     }
 
-    const referenceBlock = await loadReferenceBlock();
+    const [referenceBlock, freeTextB] = await Promise.all([
+      loadReferenceBlock(),
+      classifyFreeTextB(apiKey, data.freeText),
+    ]);
     const langDirective =
       data.lang === "en"
         ? `\n\n【Output Language Override】Respond in English only. The first sentence MUST follow this exact format: "Your result points to #XXXXXX [Color Name]." (use the color's English name: Pure Black, Near Black, Dark Grey, Deep Grey, Mid-Dark Grey, Mid Grey, Standard Grey, Light-Mid Grey, Light Grey, Bright Grey, Pale Grey, Pure White). Keep the same three-tier structure (Mechanism / Mapping / Fluidity). Keep the entire response strictly under 200 words — self-condense if approaching the limit while still closing all three tiers. Do NOT use Markdown, headings, or extra annotations.`
