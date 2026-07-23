@@ -1033,31 +1033,32 @@ const CARD_H = 200;
 const GAP_X = 20;
 const GAP_Y = 24;
 const EDGE_PAD = 20;
+const TOP_PAD = 8; // smaller top padding so the top row sits higher
 
 const SCREEN_W = EDGE_PAD * 2 + 4 * CARD_W + 3 * GAP_X;
-const SCREEN_H = EDGE_PAD * 2 + 3 * CARD_H + 2 * GAP_Y;
+const SCREEN_H = TOP_PAD + EDGE_PAD + 3 * CARD_H + 2 * GAP_Y;
 
 // 8 fixed on-screen slots (top: 4, middle: 2 flanking logo, bottom: 2 under logo)
 const SLOT_POSITIONS: { x: number; y: number }[] = [
-  { x: EDGE_PAD + 0 * (CARD_W + GAP_X), y: EDGE_PAD },
-  { x: EDGE_PAD + 1 * (CARD_W + GAP_X), y: EDGE_PAD },
-  { x: EDGE_PAD + 2 * (CARD_W + GAP_X), y: EDGE_PAD },
-  { x: EDGE_PAD + 3 * (CARD_W + GAP_X), y: EDGE_PAD },
-  { x: EDGE_PAD + 0 * (CARD_W + GAP_X), y: EDGE_PAD + (CARD_H + GAP_Y) },
-  { x: EDGE_PAD + 3 * (CARD_W + GAP_X), y: EDGE_PAD + (CARD_H + GAP_Y) },
-  { x: EDGE_PAD + 1 * (CARD_W + GAP_X), y: EDGE_PAD + 2 * (CARD_H + GAP_Y) },
-  { x: EDGE_PAD + 2 * (CARD_W + GAP_X), y: EDGE_PAD + 2 * (CARD_H + GAP_Y) },
+  { x: EDGE_PAD + 0 * (CARD_W + GAP_X), y: TOP_PAD },
+  { x: EDGE_PAD + 1 * (CARD_W + GAP_X), y: TOP_PAD },
+  { x: EDGE_PAD + 2 * (CARD_W + GAP_X), y: TOP_PAD },
+  { x: EDGE_PAD + 3 * (CARD_W + GAP_X), y: TOP_PAD },
+  { x: EDGE_PAD + 0 * (CARD_W + GAP_X), y: TOP_PAD + (CARD_H + GAP_Y) },
+  { x: EDGE_PAD + 3 * (CARD_W + GAP_X), y: TOP_PAD + (CARD_H + GAP_Y) },
+  { x: EDGE_PAD + 1 * (CARD_W + GAP_X), y: TOP_PAD + 2 * (CARD_H + GAP_Y) },
+  { x: EDGE_PAD + 2 * (CARD_W + GAP_X), y: TOP_PAD + 2 * (CARD_H + GAP_Y) },
 ];
 
 const LOGO_BOX = {
   x: EDGE_PAD + (CARD_W + GAP_X),
-  y: EDGE_PAD + (CARD_H + GAP_Y),
+  y: TOP_PAD + (CARD_H + GAP_Y),
   w: 2 * CARD_W + GAP_X,
   h: CARD_H,
 };
 
-const HISTORY_TOP_Y = EDGE_PAD;
-const HISTORY_BOT_Y = EDGE_PAD + 2 * (CARD_H + GAP_Y);
+const HISTORY_TOP_Y = TOP_PAD;
+const HISTORY_BOT_Y = TOP_PAD + 2 * (CARD_H + GAP_Y);
 
 function hashId(id: string): number {
   let h = 0;
