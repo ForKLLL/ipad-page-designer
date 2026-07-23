@@ -1030,8 +1030,8 @@ function ErrorScreen({
 
 const CARD_W = 240;
 const CARD_H = 540;
-const GAP_X = 72;
-const EDGE_PAD = 20;
+const GAP_X = 32;
+const EDGE_PAD = 12;
 const SLOT_COUNT = 4;
 const Y_JITTER = 4;
 
@@ -1149,15 +1149,12 @@ function GalleryScreen({
       if (!mounted) return;
       const rows = (data ?? []) as SavedResult[];
       rows.forEach((r) => seenIds.current.add(r.id));
-      const initial = rows.slice(0, SLOT_COUNT);
-      const rest = rows.slice(SLOT_COUNT); // desc; rest[0] = closest to screen
-      const shuffled = seededShuffle(
-        initial,
-        hashId(initial[0]?.id ?? "balance-seed"),
-      );
+      const initial = rows.slice(0, SLOT_COUNT); // desc: initial[0] = newest
+      const rest = rows.slice(SLOT_COUNT);
+      // Place so slots[SLOT_COUNT-1] = newest, filling from the right.
       const newSlots: (SavedResult | null)[] = Array(SLOT_COUNT).fill(null);
-      shuffled.forEach((r, i) => {
-        newSlots[i] = r;
+      initial.forEach((r, i) => {
+        newSlots[SLOT_COUNT - 1 - i] = r;
       });
       setSlots(newSlots);
       setHistory(rest);
@@ -1179,23 +1176,26 @@ function GalleryScreen({
             return next;
           });
           setSlots((prev) => {
-            // prefer any empty slot
-            let idx = prev.findIndex((s) => s === null);
-            let displaced: SavedResult | null = null;
-            if (idx === -1) {
-              idx = 0;
-              let oldestTs = Date.parse(prev[0]!.created_at ?? "");
-              for (let i = 1; i < prev.length; i++) {
-                const t = Date.parse(prev[i]!.created_at ?? "");
-                if (t < oldestTs) {
-                  oldestTs = t;
-                  idx = i;
-                }
-              }
-              displaced = prev[idx];
+            // Newest always lands in the rightmost slot.
+            // If any slots are still empty, keep empties on the left and only
+            // shift within the filled portion so the new card takes slot N-1.
+            const firstFilled = prev.findIndex((s) => s !== null);
+            if (firstFilled === -1) {
+              const next: (SavedResult | null)[] = Array(SLOT_COUNT).fill(null);
+              next[SLOT_COUNT - 1] = r;
+              return next;
             }
             const next = [...prev];
-            next[idx] = r;
+            let displaced: SavedResult | null = null;
+            if (firstFilled === 0) {
+              // All slots full — oldest (slot 0) is displaced to history.
+              displaced = next[0];
+            }
+            // Shift left from firstFilled → SLOT_COUNT-1, drop new card in last.
+            for (let i = firstFilled; i < SLOT_COUNT - 1; i++) {
+              next[i] = next[i + 1];
+            }
+            next[SLOT_COUNT - 1] = r;
             if (displaced) {
               const d = displaced;
               setHistory((h) => [d, ...h]);
