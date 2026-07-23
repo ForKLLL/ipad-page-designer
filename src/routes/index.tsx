@@ -1122,7 +1122,7 @@ function GalleryScreen({
   highlightId?: string;
 }) {
   const [slots, setSlots] = useState<(SavedResult | null)[]>(() =>
-    Array(8).fill(null),
+    Array(SLOT_COUNT).fill(null),
   );
   const [history, setHistory] = useState<SavedResult[]>([]);
   const [loaded, setLoaded] = useState(false);
