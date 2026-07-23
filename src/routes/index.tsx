@@ -1030,8 +1030,8 @@ function ErrorScreen({
 
 const CARD_W = 240;
 const CARD_H = 540;
-const GAP_X = 72;
-const EDGE_PAD = 20;
+const GAP_X = 32;
+const EDGE_PAD = 12;
 const SLOT_COUNT = 4;
 const Y_JITTER = 4;
 
