@@ -38,7 +38,8 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 
 【Input 數據處理邏輯】
 - 選擇題通常對應不同程度的心理傾向（從防禦／內斂／暗調 → 敞開／外放／亮調）。
-- 使用者訊息會列出每一題所選選項對應的 B 值、開放題估計 B，以及【綜合錨點】（2×選擇題平均 + 1×開放題估計 的加權平均）。綜合錨點只是一個**參考起點**，不是上下限——請不要把它當作硬性框架，而是把它視為理解整體傾向的第一眼。
+- 使用者訊息會列出每一題所選選項對應的 B 值、開放題估計 B，以及【整體傾向】方向（加權平均後的 direction label）。這只是**方向性參考**，不是硬性框架，也未指定任何 Hex。
+- 【Q11 的權重原則 · 非常重要】選擇題是被迫從 4 個固定選項中挑選，很多人並不真正符合任何一個；Q11 是使用者用自己的語言描述的「理想平衡」，未被選項束縛。因此 Q11 至少與選擇題整體等重；當 Q11 與選擇題方向明顯不一致（訊息中會標示 ⚠），請以 Q11 為主要依據，選擇題僅作為輔助紋理；當 Q11 與選擇題方向一致但語感更細，Q11 用來在該方向內微調最終 Hex 的具體位置。
 - 請把 11 題視為一個**整體圖像**來閱讀：留意單一亮點或暗點、答案之間的張力、以及開放題與選擇題的互相補足或矛盾。若一個明顯的離群答案或強烈的 Q11 意象真正重塑了整體圖像，請忠實反映，不必為了貼近平均而抹平它；若答案呈現雙極或內在拉扯，請在分析中誠實指出這份張力，並選擇最能代表整體格式塔（gestalt）的 Hex。
 - 不要因為「務實 / 內斂 / 沉穩」等泛用形容就反射性地往 #4D4D4D 收攏；請以整體答案圖像為準。
 - 綜合評估後，得出一個最終的 Hex code。不需要 B 數值。
@@ -161,33 +162,52 @@ function buildUserPrompt(
     ? Math.round(picked.reduce((a, b) => a + b, 0) / picked.length)
     : 50;
 
-  const combinedAvgB =
-    freeTextB === null
-      ? choiceAvgB
-      : Math.round((choiceAvgB * 2 + freeTextB) / 3);
-
   const minB = picked.length ? Math.min(...picked) : 50;
   const maxB = picked.length ? Math.max(...picked) : 50;
   const spread = maxB - minB;
+
+  // Weighting: baseline 1:1 choice:freeText. When choice answers are
+  // high-variance (spread ≥ 40) the 4-option grid clearly didn't fit
+  // the person, so tilt further toward Q11 (1:2).
+  let combinedAvgB: number;
+  let weightNote: string;
+  if (freeTextB === null) {
+    combinedAvgB = choiceAvgB;
+    weightNote = "（開放題未填或無法估計，僅以選擇題為依據）";
+  } else if (spread >= 40) {
+    combinedAvgB = Math.round((choiceAvgB + freeTextB * 2) / 3);
+    weightNote = "（選擇題答案分散度高，Q11 權重加倍：choice:free = 1:2）";
+  } else {
+    combinedAvgB = Math.round((choiceAvgB + freeTextB) / 2);
+    weightNote = "（choice:free = 1:1）";
+  }
+
   const direction = directionLabel(combinedAvgB);
+  const divergence =
+    freeTextB !== null && Math.abs(freeTextB - choiceAvgB) >= 20;
 
   lines.push("");
   lines.push(
     `【選擇題 B 分佈】[${picked.join(", ")}]（min=${minB}, max=${maxB}, spread=${spread}）`,
   );
-  lines.push(
-    `【選擇題平均】B ≈ ${choiceAvgB}${
-      freeTextB === null
-        ? "（開放題未填或無法估計，僅以選擇題為依據）"
-        : `；【開放題估計】B ≈ ${freeTextB}（${nameForB(freeTextB)}）`
-    }。`,
-  );
-  lines.push(
-    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）。這只是**方向性參考**，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、Q11 意象）自行判斷。最終 Hex 必須且只能是 11 色調色盤中的其中一個。`,
-  );
+  lines.push(`【選擇題平均】B ≈ ${choiceAvgB}`);
   lines.push("");
   lines.push(
-    `Q11（開放題）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
+    `Q11（開放題 · 使用者自己的話 / the user's own words，不受 4 選項網格限制）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
+  );
+  if (freeTextB !== null) {
+    lines.push(`  → Q11 估計 B ≈ ${freeTextB}（${nameForB(freeTextB)}）`);
+  }
+  if (divergence) {
+    lines.push(
+      `  → ⚠ Q11 與選擇題方向明顯不一致（差距 ${Math.abs(
+        (freeTextB ?? 0) - choiceAvgB,
+      )}）。選擇題是被迫從 4 個選項中挑選，可能不貼合此人；請以 Q11 為主要依據，選擇題僅作為輔助紋理。`,
+    );
+  }
+  lines.push("");
+  lines.push(
+    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）${weightNote}。此為方向性參考，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、以及 Q11 使用者自己的語言）自行判斷。最終 Hex 必須且只能是 11 色調色盤中的其中一個。`,
   );
   return lines.join("\n");
 }

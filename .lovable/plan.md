@@ -1,42 +1,35 @@
 ## Goal
-Remove the pre-snapped Hex anchor from the model's input so it no longer gravitates toward a specific swatch. Replace it with a coarse direction label plus the raw picked-B distribution, and label each B tier with its color name so the model reasons in color language rather than pattern-matching a single suggested hex.
+Make Q11 (the open-ended question) a first-class signal in the analysis, not a minor tiebreaker. It should meaningfully shift the result when the free text contradicts or nuances the multiple-choice pattern — because that's exactly when a person "doesn't fit" the 11 scales.
 
-## Changes (all in `src/lib/analyze.functions.ts`)
+## Why this needs changing
+Right now in `src/lib/analyze.functions.ts`:
+- The combined anchor is `(choiceAvgB * 2 + freeTextB) / 3` — Q11 is worth **half** of the choice average.
+- The prompt frames Q11 as just "Q11 (open question)" at the bottom, with no instruction that it can override the choice pattern.
+- The system prompt mentions Q11 imagery in passing but never says "when Q11 diverges from the choices, trust Q11 more, because the choices are a forced 4-option grid and Q11 is the person's own words."
 
-### 1. Stop pre-snapping the anchor to a Hex
-In `buildUserPrompt`, drop the line that computes `snapped` and prints `就近十位對應 Hex：${snappedToHex(snapped)}`. The combined anchor stays as a raw number (0–100), but no hex is suggested.
+Net effect: mixed choices + a strong Q11 image still collapse toward the choice average.
 
-### 2. Add a direction bucket instead of a hex
-Derive a coarse label from `combinedAvgB`:
-- `0–29` → "偏暗 / darker"
-- `30–49` → "偏暗中性 / balanced-dark"
-- `50` → "中性 / balanced"
-- `51–70` → "偏亮中性 / balanced-light"
-- `71–100` → "偏亮 / lighter"
+## Changes (all in `src/lib/analyze.functions.ts`, prompt-only)
 
-Print this direction in place of the hex, wording it as a *tendency*, not a target.
+### 1. Rebalance the anchor weighting
+Change the combined anchor from `2:1` (choice:free) to roughly `1:1`, and when the choice answers are high-variance (spread ≥ 40), tilt it further toward Q11 (e.g. `1:2`). Rationale: high spread = the person didn't fit the grid, so their own words should lead.
 
-### 3. Show the raw B distribution
-For each answered question, already prints `B≈X`. Add a compact summary line listing all picked B values (e.g. `[10, 67, 42, 92, 42, 67, 10, 42, 67, 92]`), plus min / max / spread so the model can see variance and outliers rather than just the mean.
+### 2. Elevate Q11 in the user prompt
+- Move Q11 up so it's presented alongside the choice summary, not as a trailing footnote.
+- Label it explicitly as "使用者自己的話 / the user's own words" and note it is unconstrained by the 4-option grid.
+- Print the free-text B estimate + color name next to it, and flag when it diverges from the choice average (e.g. `|freeTextB - choiceAvgB| ≥ 20` → "Q11 與選擇題方向不一致，請以 Q11 為主要依據").
 
-### 4. Name the colors inline with each B tier
-When printing each question's pick and when describing the anchor, append the color name for that B decile. Names come from the existing guide:
-```
-0 Black · 10 Extreme Dark Grey · 20 Dark Grey · 30 Deep Grey ·
-40 Medium Grey · 50 Standard Grey · 60 Medium Light Grey ·
-70 Light Grey · 80 Bright Grey · 90 Extreme Light Grey · 100 White
-```
-So a pick prints as `→ 選擇：… (B≈40, Medium Grey)` and the anchor prints as `方向：balanced-dark（picked average B≈42, near Medium Grey）— 僅為傾向參考，非目標`.
+### 3. Update the system prompt guidance on Q11
+Add one short paragraph in the 【Input 數據處理邏輯】 section:
+- Choices are a forced 4-option grid and may not fit the person; Q11 is their own language and carries equal or greater weight.
+- When Q11 clearly contradicts the choice pattern, follow Q11.
+- When Q11 nuances the choices (same direction, different texture), let it refine the final Hex within that direction.
 
-### 5. Tighten the accompanying prompt sentence
-Replace the current "此為參考起點…最終 Hex 必須是 11 色調色盤中的其中一個" sentence with wording that:
-- States the direction + raw distribution are context, not a target,
-- Explicitly says no specific hex is being suggested,
-- Repeats that the final Hex must be one of the 11 palette values.
-
-### 6. Keep `snappedToHex` in the file
-Still used elsewhere/imports; just no longer called from `buildUserPrompt`. (If unused after the edit, remove it.)
+### 4. Keep everything else intact
+- No changes to `SYSTEM_PROMPT` color guide, question tiers, UI, scoring in `src/routes/index.tsx`, or the 11-hex palette lock.
+- `classifyFreeTextB` and the direction-label logic stay as-is.
 
 ## Out of scope
-- No changes to `SYSTEM_PROMPT` guide content, question tiers, free-text classifier, UI, or scoring in `src/routes/index.tsx`.
-- English/Chinese output behavior unchanged.
+- Changing the questionnaire itself or the tier values.
+- Changing the free-text classifier model or its 0–100 snapping.
+- Any UI or gallery changes.
