@@ -1149,13 +1149,13 @@ function GalleryScreen({
       if (!mounted) return;
       const rows = (data ?? []) as SavedResult[];
       rows.forEach((r) => seenIds.current.add(r.id));
-      const initial = rows.slice(0, 8);
-      const rest = rows.slice(8); // desc; rest[0] = closest to screen
+      const initial = rows.slice(0, SLOT_COUNT);
+      const rest = rows.slice(SLOT_COUNT); // desc; rest[0] = closest to screen
       const shuffled = seededShuffle(
         initial,
         hashId(initial[0]?.id ?? "balance-seed"),
       );
-      const newSlots: (SavedResult | null)[] = Array(8).fill(null);
+      const newSlots: (SavedResult | null)[] = Array(SLOT_COUNT).fill(null);
       shuffled.forEach((r, i) => {
         newSlots[i] = r;
       });
