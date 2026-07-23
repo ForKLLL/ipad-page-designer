@@ -1212,7 +1212,7 @@ function GalleryScreen({
     };
   }, []);
 
-  const historyCols = Math.ceil(history.length / 2);
+  const historyCols = history.length;
   const historyWidth = historyCols * (CARD_W + GAP_X);
   const canvasWidth = historyWidth + SCREEN_W;
 
@@ -1226,12 +1226,8 @@ function GalleryScreen({
       );
     });
     history.forEach((r, i) => {
-      const col = Math.floor(i / 2);
-      const row = i % 2;
-      const x =
-        historyWidth - (col + 1) * (CARD_W + GAP_X) + EDGE_PAD;
-      const y = row === 0 ? HISTORY_TOP_Y : HISTORY_BOT_Y;
-      out.push(decorate(r, x, y, false));
+      const x = historyWidth - (i + 1) * (CARD_W + GAP_X) + EDGE_PAD;
+      out.push(decorate(r, x, HISTORY_ROW_Y, false));
     });
     return out;
   }, [slots, history, historyWidth, newIds]);
