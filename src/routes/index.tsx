@@ -913,10 +913,10 @@ function ErrorScreen({
 
 /* ---------------- gallery ---------------- */
 
-const CARD_W = 200;
-const CARD_H = 145;
+const CARD_W = 150;
+const CARD_H = 210;
 const GAP_X = 22;
-const GAP_Y = 24;
+const GAP_Y = 28;
 const EDGE_PAD = 24;
 
 const SCREEN_W = EDGE_PAD * 2 + 4 * CARD_W + 3 * GAP_X;
@@ -1216,8 +1216,7 @@ function ScatteredCard({ placed }: { placed: Placed }) {
         left: x,
         top: y,
         width: CARD_W,
-        height: CARD_H,
-        overflow: "hidden",
+        minHeight: CARD_H,
         transformOrigin: "50% 55%",
         ["--rot" as never]: `${rot}deg`,
         ["--spin-from" as never]: `${spinFrom}deg`,
@@ -1231,15 +1230,15 @@ function ScatteredCard({ placed }: { placed: Placed }) {
           backgroundColor: "#efece9",
           boxShadow:
             "0 1px 0 rgba(0,0,0,0.04), 0 10px 20px -14px rgba(0,0,0,0.32), 0 2px 5px rgba(0,0,0,0.06)",
-          padding: "7px 9px 6px 9px",
+          padding: "10px 10px 8px 10px",
         }}
       >
         <div className="flex items-start gap-2">
           <div
             className="shrink-0"
             style={{
-              width: 28,
-              height: 28,
+              width: 34,
+              height: 34,
               backgroundColor: result.hex,
               border: result.b_value === 100 ? "1px solid #d8d6d1" : "none",
               position: "relative",
@@ -1249,7 +1248,7 @@ function ScatteredCard({ placed }: { placed: Placed }) {
               className="absolute inset-0 flex items-end justify-start pl-0.5 pb-0.5"
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 5.5,
+                fontSize: 6,
                 letterSpacing: "0.02em",
                 color: textOnSwatch,
               }}
@@ -1261,7 +1260,7 @@ function ScatteredCard({ placed }: { placed: Placed }) {
             <div
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 6.5,
+                fontSize: 7,
                 letterSpacing: "0.14em",
                 opacity: 0.55,
               }}
@@ -1273,9 +1272,9 @@ function ScatteredCard({ placed }: { placed: Placed }) {
               style={{
                 fontFamily: "'Noto Serif TC', serif",
                 fontWeight: 700,
-                fontSize: 10,
+                fontSize: 11,
                 lineHeight: 1.1,
-                marginTop: 1,
+                marginTop: 2,
               }}
             >
               {result.shade_name}
@@ -1284,7 +1283,7 @@ function ScatteredCard({ placed }: { placed: Placed }) {
         </div>
 
         <div
-          className="my-1"
+          className="my-1.5"
           style={{ height: 1, backgroundColor: "rgba(0,0,0,0.12)" }}
         />
 
@@ -1292,23 +1291,22 @@ function ScatteredCard({ placed }: { placed: Placed }) {
           className="flex-1"
           style={{
             fontFamily: "'Noto Serif TC', serif",
-            fontSize: 5,
-            lineHeight: 1.32,
+            fontSize: 6.5,
+            lineHeight: 1.45,
             color: "rgba(11,11,11,0.82)",
             textAlign: "justify",
             whiteSpace: "pre-wrap",
-            overflow: "hidden",
           }}
         >
           {result.analysis}
         </p>
 
         <div className="mt-1 flex items-end justify-between">
-          <SplitWaveLogo size="38px" />
+          <SplitWaveLogo size="56px" />
           <span
             style={{
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 5.5,
+              fontSize: 6,
               letterSpacing: "0.1em",
               opacity: 0.4,
             }}
