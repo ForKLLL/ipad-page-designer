@@ -1,15 +1,22 @@
-## Problem
+## Goal
 
-The gallery's top row is being clipped. Cards in row 1 are placed at `y = EDGE_PAD - 150` (negative), but the scroller uses `height: SCREEN_H` with `overflowY: hidden` — anything above y=0 gets cut off. That's why the top row's full result card isn't visible.
+On desktop (PC) only, give the gallery more space between cards and larger text. iPad and mobile layout stay identical.
 
-The lift-only approach can't work: the scroller has a fixed height that doesn't account for the raised row.
+## Approach
 
-## Fix
+Keep all gallery layout constants (`CARD_W/H`, `GAP_X/Y`, `SLOT_POSITIONS`, `SCREEN_W/H`, logo box) unchanged so iPad still fits perfectly. Apply a CSS `transform: scale()` to the gallery scroller on wide viewports — this proportionally increases card size, gaps between cards, and every text element inside cards in a single move.
 
-In `src/routes/index.tsx`, stop lifting the top row and instead anchor the whole gallery strip from the top of the viewport so row 1 naturally sits at the same height as the intro "BalancE" wordmark.
+## Change (in `src/routes/index.tsx`, gallery scroller wrapper only)
 
-1. Set `TOP_ROW_LIFT = 0` so all three rows use their normal `EDGE_PAD`-based `y` positions (top row fully inside the canvas, no clipping).
-2. Change the outer scroller wrapper (line 1263) from `items-center` (vertical center) to `items-start` with a top padding equal to the intro logo's offset (~56 px, matching the homepage header padding). This raises the entire 3-row grid so row 1 aligns with the "BalancE" wordmark height, while rows 2–3 and the centered logo shift up together — preserving the existing spatial relationships.
-3. Leave `SCREEN_W`, `SCREEN_H`, `SLOT_POSITIONS` math, card sizes, history lane, and logo box otherwise unchanged.
+1. Add a `useMediaQuery`-style effect (or a simple `window.matchMedia('(min-width: 1280px)')` hook) inside `GalleryScreen` that returns `isDesktop`.
+2. Wrap the inner scroller in a container that, when `isDesktop`, applies:
+   - `transform: scale(1.25)`
+   - `transformOrigin: 'center top'`
+   - reserves the scaled footprint via `width: SCREEN_W * 1.25`, `height: SCREEN_H * 1.25` on the outer wrapper so surrounding layout (header, footer count line) doesn't collide.
+3. Leave the `maxWidth: SCREEN_W` on the scroller for iPad/mobile — the desktop branch overrides with the scaled size.
+4. No changes to card component internals, text sizes, or slot math.
 
-Result: same visual placement of the top row (aligned with the homepage wordmark), but the full card is now inside the visible/scrollable area instead of being clipped.
+## Result
+
+Desktop: cards ~25% larger, gaps ~25% wider, all text (shade name, date, hex, analysis) ~25% larger — a single uniform upscale.
+iPad / mobile: unchanged.
