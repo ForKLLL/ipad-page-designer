@@ -913,10 +913,10 @@ function ErrorScreen({
 
 /* ---------------- gallery ---------------- */
 
-const CARD_W = 150;
-const CARD_H = 210;
+const CARD_W = 200;
+const CARD_H = 145;
 const GAP_X = 22;
-const GAP_Y = 28;
+const GAP_Y = 24;
 const EDGE_PAD = 24;
 
 const SCREEN_W = EDGE_PAD * 2 + 4 * CARD_W + 3 * GAP_X;
