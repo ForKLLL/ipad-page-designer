@@ -1235,11 +1235,11 @@ function GalleryScreen({
 
   return (
     <div
-      className="relative min-h-screen w-full"
+      className="relative flex min-h-screen w-full flex-col"
       style={{ backgroundColor: BG, color: INK, overflow: "hidden" }}
     >
       {/* top bar */}
-      <div className="relative z-30 flex items-center justify-between px-8 py-6">
+      <div className="relative z-30 flex shrink-0 items-center justify-between px-8 py-6">
         <button
           onClick={onRestart}
           className="inline-flex items-center gap-2 text-[14px] transition-opacity hover:opacity-60"
@@ -1258,18 +1258,19 @@ function GalleryScreen({
         </div>
       </div>
 
-      {/* horizontally scrolling strip */}
-      <div
-        ref={scrollerRef}
-        className="relative mx-auto"
-        style={{
-          width: "100%",
-          maxWidth: SCREEN_W,
-          height: SCREEN_H,
-          overflowX: "auto",
-          overflowY: "hidden",
-        }}
-      >
+      {/* horizontally scrolling strip — vertically centered, scales up on wider screens */}
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4">
+        <div
+          ref={scrollerRef}
+          className="relative"
+          style={{
+            width: "100%",
+            maxWidth: SCREEN_W,
+            height: SCREEN_H,
+            overflowX: "auto",
+            overflowY: "hidden",
+          }}
+        >
         <div
           className="relative"
           style={{ width: canvasWidth, height: SCREEN_H }}
@@ -1291,7 +1292,9 @@ function GalleryScreen({
             <ScatteredCard key={p.id} placed={p} />
           ))}
         </div>
+        </div>
       </div>
+
 
       <style>{`
         @keyframes cardFall {
