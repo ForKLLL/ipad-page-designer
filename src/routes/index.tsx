@@ -397,10 +397,18 @@ function BalancEApp() {
         <div className="mx-auto flex min-h-screen max-w-[1180px] flex-col px-10 py-10 sm:px-14 sm:py-14">
           {stage.kind === "intro" && (
             <Intro
-              onBegin={() => setStage({ kind: "question", index: 0 })}
+              onBegin={() => setStage({ kind: "mood" })}
               onGallery={() => setStage({ kind: "gallery" })}
             />
           )}
+
+          {stage.kind === "mood" && (
+            <MoodScreen
+              lang={lang}
+              onContinue={() => setStage({ kind: "question", index: 0 })}
+            />
+          )}
+
 
           {stage.kind === "question" && (
             <QuestionScreen
