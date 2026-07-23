@@ -307,12 +307,14 @@ type SavedResult = {
 
 type Stage =
   | { kind: "intro" }
+  | { kind: "mood" }
   | { kind: "question"; index: number }
   | { kind: "free" }
   | { kind: "loading" }
   | { kind: "result"; bValue: number; analysis: string; savedId?: string }
   | { kind: "gallery" }
   | { kind: "error"; message: string };
+
 
 const BG = "#f2efee";
 const INK = "#0b0b0b";
