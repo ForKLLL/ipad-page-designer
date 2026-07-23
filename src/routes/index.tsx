@@ -1029,11 +1029,11 @@ function ErrorScreen({
 /* ---------------- gallery ---------------- */
 
 const CARD_W = 240;
-const CARD_H = 360;
+const CARD_H = 460;
 const GAP_X = 72;
 const EDGE_PAD = 20;
 const SLOT_COUNT = 4;
-const Y_JITTER = 14;
+const Y_JITTER = 8;
 
 const SCREEN_W = EDGE_PAD * 2 + SLOT_COUNT * CARD_W + (SLOT_COUNT - 1) * GAP_X;
 const SCREEN_H = EDGE_PAD * 2 + CARD_H + Y_JITTER * 2;
@@ -1100,7 +1100,7 @@ function decorate(
   const seed = hashId(result.id);
   const jitterRange = 10;
   const jitterX = (seed % (jitterRange * 2)) - jitterRange;
-  const jitterY = (((seed >> 5) % (jitterRange * 2)) - jitterRange) * 0.6;
+  const jitterY = (((seed >> 5) % (jitterRange * 2)) - jitterRange) * 0.35;
   const rot = ((seed >> 9) % 18) - 9;
   const spinFrom = ((seed >> 13) % 60) * (seed & 1 ? -1 : 1) - 40;
   return {
@@ -1353,7 +1353,7 @@ function ScatteredCard({ placed }: { placed: Placed }) {
         left: x,
         top: y,
         width: CARD_W,
-        minHeight: CARD_H,
+        height: CARD_H,
         transformOrigin: "50% 55%",
         ["--rot" as never]: `${rot}deg`,
         ["--spin-from" as never]: `${spinFrom}deg`,
@@ -1433,6 +1433,7 @@ function ScatteredCard({ placed }: { placed: Placed }) {
             color: "rgba(11,11,11,0.82)",
             textAlign: "justify",
             whiteSpace: "pre-wrap",
+            overflow: "hidden",
           }}
         >
           {result.analysis}
