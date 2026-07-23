@@ -1028,11 +1028,11 @@ function ErrorScreen({
 
 /* ---------------- gallery ---------------- */
 
-const CARD_W = 190;
-const CARD_H = 160;
-const GAP_X = 22;
-const GAP_Y = 28;
-const EDGE_PAD = 24;
+const CARD_W = 240;
+const CARD_H = 200;
+const GAP_X = 20;
+const GAP_Y = 24;
+const EDGE_PAD = 20;
 
 const SCREEN_W = EDGE_PAD * 2 + 4 * CARD_W + 3 * GAP_X;
 const SCREEN_H = EDGE_PAD * 2 + 3 * CARD_H + 2 * GAP_Y;
