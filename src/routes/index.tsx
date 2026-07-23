@@ -913,8 +913,8 @@ function ErrorScreen({
 
 /* ---------------- gallery ---------------- */
 
-const CARD_W = 150;
-const CARD_H = 210;
+const CARD_W = 190;
+const CARD_H = 160;
 const GAP_X = 22;
 const GAP_Y = 28;
 const EDGE_PAD = 24;
