@@ -1,22 +1,16 @@
-## Goal
+## Gallery: max 4 cards visible, random horizontal placement
 
-On desktop (PC) only, give the gallery more space between cards and larger text. iPad and mobile layout stay identical.
+Update `GalleryScreen` in `src/routes/index.tsx`:
 
-## Approach
+1. **Change visible slot count from 8 → 4.**
+2. **Replace the 3-row `SLOT_POSITIONS` grid with a single-row layout.**
+   - All 4 visible cards sit on one horizontal row, vertically roughly centered relative to the current strip height.
+   - X positions: divide the canvas width into 4 zones; within each zone, apply deterministic random jitter (seeded per slot index or per card id so it feels random but doesn't reshuffle on every render).
+   - Y positions: small random jitter (e.g. ±20–30px) around the row baseline.
+3. **History lane behavior unchanged:** cards beyond the newest 4 slide left off-screen into the scroll-left history area, using the same push mechanic that currently handles overflow past 8.
+4. **Keep everything else intact:** card size, fonts, desktop 1.25× scale, top padding alignment with the wordmark, real-time subscription, falling animation on new arrivals.
 
-Keep all gallery layout constants (`CARD_W/H`, `GAP_X/Y`, `SLOT_POSITIONS`, `SCREEN_W/H`, logo box) unchanged so iPad still fits perfectly. Apply a CSS `transform: scale()` to the gallery scroller on wide viewports — this proportionally increases card size, gaps between cards, and every text element inside cards in a single move.
-
-## Change (in `src/routes/index.tsx`, gallery scroller wrapper only)
-
-1. Add a `useMediaQuery`-style effect (or a simple `window.matchMedia('(min-width: 1280px)')` hook) inside `GalleryScreen` that returns `isDesktop`.
-2. Wrap the inner scroller in a container that, when `isDesktop`, applies:
-   - `transform: scale(1.25)`
-   - `transformOrigin: 'center top'`
-   - reserves the scaled footprint via `width: SCREEN_W * 1.25`, `height: SCREEN_H * 1.25` on the outer wrapper so surrounding layout (header, footer count line) doesn't collide.
-3. Leave the `maxWidth: SCREEN_W` on the scroller for iPad/mobile — the desktop branch overrides with the scaled size.
-4. No changes to card component internals, text sizes, or slot math.
-
-## Result
-
-Desktop: cards ~25% larger, gaps ~25% wider, all text (shade name, date, hex, analysis) ~25% larger — a single uniform upscale.
-iPad / mobile: unchanged.
+### Technical notes
+- Rewrite `SLOT_POSITIONS` as a function that returns 4 `{x, y}` slots based on canvas width and a seeded RNG (seed by slot index so layout is stable across renders).
+- Recompute the visible-strip width so the 4 zones span the iPad viewport; adjust the history-lane offset math (currently based on 8 slots) to use 4.
+- No changes to DB, RLS, scoring, or admin moderation.
