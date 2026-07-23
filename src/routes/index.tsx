@@ -1031,34 +1031,37 @@ function ErrorScreen({
 const CARD_W = 240;
 const CARD_H = 200;
 const GAP_X = 20;
-const GAP_Y = 24;
 const EDGE_PAD = 20;
+const SLOT_COUNT = 4;
+const Y_JITTER = 28;
 
-const SCREEN_W = EDGE_PAD * 2 + 4 * CARD_W + 3 * GAP_X;
-const SCREEN_H = EDGE_PAD * 2 + 3 * CARD_H + 2 * GAP_Y;
+const SCREEN_W = EDGE_PAD * 2 + SLOT_COUNT * CARD_W + (SLOT_COUNT - 1) * GAP_X;
+const SCREEN_H = EDGE_PAD * 2 + CARD_H + Y_JITTER * 2;
 
-// 8 fixed on-screen slots (top: 4, middle: 2 flanking logo, bottom: 2 under logo)
-const TOP_ROW_LIFT = 0;
-const SLOT_POSITIONS: { x: number; y: number }[] = [
-  { x: EDGE_PAD + 0 * (CARD_W + GAP_X), y: EDGE_PAD - TOP_ROW_LIFT },
-  { x: EDGE_PAD + 1 * (CARD_W + GAP_X), y: EDGE_PAD - TOP_ROW_LIFT },
-  { x: EDGE_PAD + 2 * (CARD_W + GAP_X), y: EDGE_PAD - TOP_ROW_LIFT },
-  { x: EDGE_PAD + 3 * (CARD_W + GAP_X), y: EDGE_PAD - TOP_ROW_LIFT },
-  { x: EDGE_PAD + 0 * (CARD_W + GAP_X), y: EDGE_PAD + (CARD_H + GAP_Y) },
-  { x: EDGE_PAD + 3 * (CARD_W + GAP_X), y: EDGE_PAD + (CARD_H + GAP_Y) },
-  { x: EDGE_PAD + 1 * (CARD_W + GAP_X), y: EDGE_PAD + 2 * (CARD_H + GAP_Y) },
-  { x: EDGE_PAD + 2 * (CARD_W + GAP_X), y: EDGE_PAD + 2 * (CARD_H + GAP_Y) },
-];
+// 4 on-screen slots in a single row. X is randomized (seeded) within each zone,
+// Y jitters slightly around the row center.
+const ROW_CENTER_Y = EDGE_PAD + Y_JITTER + CARD_H / 2;
+const ZONE_W = CARD_W + GAP_X;
+function slotPosition(i: number): { x: number; y: number } {
+  const seed = (i + 1) * 2654435761;
+  const jitterX = ((seed >>> 0) % 60) - 30;
+  const jitterY = (((seed >>> 8) >>> 0) % (Y_JITTER * 2)) - Y_JITTER;
+  const baseX = EDGE_PAD + i * ZONE_W + jitterX;
+  return { x: baseX, y: ROW_CENTER_Y - CARD_H / 2 + jitterY };
+}
+const SLOT_POSITIONS: { x: number; y: number }[] = Array.from(
+  { length: SLOT_COUNT },
+  (_, i) => slotPosition(i),
+);
 
 const LOGO_BOX = {
-  x: EDGE_PAD + (CARD_W + GAP_X),
-  y: EDGE_PAD + (CARD_H + GAP_Y),
-  w: 2 * CARD_W + GAP_X,
+  x: EDGE_PAD,
+  y: ROW_CENTER_Y - CARD_H / 2,
+  w: SCREEN_W - EDGE_PAD * 2,
   h: CARD_H,
 };
 
-const HISTORY_TOP_Y = EDGE_PAD;
-const HISTORY_BOT_Y = EDGE_PAD + 2 * (CARD_H + GAP_Y);
+const HISTORY_ROW_Y = ROW_CENTER_Y - CARD_H / 2;
 
 function hashId(id: string): number {
   let h = 0;
