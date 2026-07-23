@@ -109,7 +109,10 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 請只輸出繁體中文分析文字，不要任何 markdown、標題或額外註解。第一句必須符合格式「你的測驗結果指向了 #XXXXXX [顏色名稱]。」`;
 
 
-function buildUserPrompt(input: z.infer<typeof InputSchema>): string {
+function buildUserPrompt(
+  input: z.infer<typeof InputSchema>,
+  freeTextB: number | null,
+): string {
   const lines: string[] = ["以下為觀眾填答："];
   const picked: number[] = [];
   input.questions.forEach((q, i) => {
@@ -123,19 +126,73 @@ function buildUserPrompt(input: z.infer<typeof InputSchema>): string {
       `Q${i + 1}：${q.prompt}\n  → 選擇：${q.options[a]}（傾向 B≈${q.tiers[a]}）`,
     );
   });
-  const avgB = picked.length
+  const choiceAvgB = picked.length
     ? Math.round(picked.reduce((a, b) => a + b, 0) / picked.length)
     : 50;
-  const snapped = Math.max(0, Math.min(100, Math.round(avgB / 10) * 10));
+
+  const combinedAvgB =
+    freeTextB === null
+      ? choiceAvgB
+      : Math.round((choiceAvgB * 2 + freeTextB) / 3);
+  const snapped = Math.max(0, Math.min(100, Math.round(combinedAvgB / 10) * 10));
+
   lines.push("");
   lines.push(
-    `【選擇題彙總】平均 B ≈ ${avgB}（就近十位對應 Hex：${snappedToHex(snapped)}）。此為主要錨點。`,
+    `【選擇題平均】B ≈ ${choiceAvgB}${
+      freeTextB === null
+        ? "（開放題未填或無法估計，僅以選擇題為依據）"
+        : `；【開放題估計】B ≈ ${freeTextB}`
+    }。`,
+  );
+  lines.push(
+    `【綜合錨點】(2×選擇題 + 1×開放題) 平均 B ≈ ${combinedAvgB}（就近十位對應 Hex：${snappedToHex(snapped)}）。最終 Hex 必須落在此錨點 ±20 內。`,
   );
   lines.push("");
   lines.push(
     `Q11（開放題）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
   );
   return lines.join("\n");
+}
+
+async function classifyFreeTextB(
+  apiKey: string,
+  freeText: string,
+): Promise<number | null> {
+  const trimmed = freeText.trim();
+  if (!trimmed) return null;
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        max_tokens: 10,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You map a short free-text answer about a person's ideal state of 'balance' to a brightness value B on a 0-100 scale, where 0 = heaviest / most inward / darkest and 100 = lightest / most open / brightest. Reply with ONLY a single integer between 0 and 100 (snapped to the nearest 10). No words, no punctuation.",
+          },
+          { role: "user", content: trimmed },
+        ],
+      }),
+    });
+    if (!res.ok) return null;
+    const j = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const raw = j.choices?.[0]?.message?.content?.trim() ?? "";
+    const m = raw.match(/\d{1,3}/);
+    if (!m) return null;
+    const n = parseInt(m[0], 10);
+    if (!Number.isFinite(n)) return null;
+    return Math.max(0, Math.min(100, Math.round(n / 10) * 10));
+  } catch {
+    return null;
+  }
 }
 
 function snappedToHex(b: number): string {
