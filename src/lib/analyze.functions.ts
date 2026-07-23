@@ -98,7 +98,7 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 - Eva Heller《色彩的性格》：白色連結純潔、開放、優雅、權力等社會象徵。
 - Adam D. Galinsky「著裝認知」(Enclothed Cognition)：白色象徵可增強注意力控制。
 
-【Output Format 輸出結構與字數限制】請嚴格輸出約 200–250 字（繁體中文），三段式：
+【Output Format 輸出結構與字數限制】請嚴格控制在 300 字以內（繁體中文，不含標點與 Hex code），三段式必須完整收束，若接近上限請主動精煉語句、避免超字：
 - 開頭（宣告結果）：「你的測驗結果指向了 #[hex code] [顏色名稱]。」
 - 第一層 當下機制的解構（The Mechanism）：結合選擇題傾向與開放題意象，客觀點出目前處理情緒、面對失控或與世界互動的內在運作方式。
 - 第二層 色彩的當下映射（The Mapping）：解釋這種機制為何對應到這個灰階特質（如 #333333 的誠懇克制、#CCCCCC 的明快效率等），肯定它在此刻帶來的保護、力量或安穩。
@@ -176,7 +176,7 @@ export const analyzeBalance = createServerFn({ method: "POST" })
     const referenceBlock = await loadReferenceBlock();
     const langDirective =
       data.lang === "en"
-        ? `\n\n【Output Language Override】Respond in English only. The first sentence MUST follow this exact format: "Your result points to #XXXXXX [Color Name]." (use the color's English name: Pure Black, Near Black, Dark Grey, Deep Grey, Mid-Dark Grey, Mid Grey, Standard Grey, Light-Mid Grey, Light Grey, Bright Grey, Pale Grey, Pure White). Keep the same three-tier structure (Mechanism / Mapping / Fluidity) and ~200 words. Do NOT use Markdown, headings, or extra annotations.`
+        ? `\n\n【Output Language Override】Respond in English only. The first sentence MUST follow this exact format: "Your result points to #XXXXXX [Color Name]." (use the color's English name: Pure Black, Near Black, Dark Grey, Deep Grey, Mid-Dark Grey, Mid Grey, Standard Grey, Light-Mid Grey, Light Grey, Bright Grey, Pale Grey, Pure White). Keep the same three-tier structure (Mechanism / Mapping / Fluidity). Keep the entire response strictly under 200 words — self-condense if approaching the limit while still closing all three tiers. Do NOT use Markdown, headings, or extra annotations.`
         : "";
     const systemContent = SYSTEM_PROMPT + referenceBlock + langDirective;
 
@@ -188,6 +188,7 @@ export const analyzeBalance = createServerFn({ method: "POST" })
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
+        max_tokens: data.lang === "en" ? 400 : 700,
         messages: [
           { role: "system", content: systemContent },
           { role: "user", content: buildUserPrompt(data) },
