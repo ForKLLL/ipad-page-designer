@@ -1149,15 +1149,12 @@ function GalleryScreen({
       if (!mounted) return;
       const rows = (data ?? []) as SavedResult[];
       rows.forEach((r) => seenIds.current.add(r.id));
-      const initial = rows.slice(0, SLOT_COUNT);
-      const rest = rows.slice(SLOT_COUNT); // desc; rest[0] = closest to screen
-      const shuffled = seededShuffle(
-        initial,
-        hashId(initial[0]?.id ?? "balance-seed"),
-      );
+      const initial = rows.slice(0, SLOT_COUNT); // desc: initial[0] = newest
+      const rest = rows.slice(SLOT_COUNT);
+      // Place so slots[SLOT_COUNT-1] = newest, filling from the right.
       const newSlots: (SavedResult | null)[] = Array(SLOT_COUNT).fill(null);
-      shuffled.forEach((r, i) => {
-        newSlots[i] = r;
+      initial.forEach((r, i) => {
+        newSlots[SLOT_COUNT - 1 - i] = r;
       });
       setSlots(newSlots);
       setHistory(rest);
