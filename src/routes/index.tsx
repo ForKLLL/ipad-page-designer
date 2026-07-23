@@ -1312,6 +1312,7 @@ function GalleryScreen({
           ))}
         </div>
         </div>
+        </div>
       </div>
 
 
