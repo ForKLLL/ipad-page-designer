@@ -38,8 +38,8 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 
 【Input 數據處理邏輯】
 - 選擇題通常對應不同程度的心理傾向（從防禦／內斂／暗調 → 敞開／外放／亮調）。
-- 第 11 題（開放題）是核心：請提取其中的隱喻、色彩意象與情緒溫度。
-- 交叉比對選擇題與開放題：若兩者一致，則強化該特質；若兩者矛盾（例如選擇題極度理性、開放題卻充滿感性），請將這種「矛盾」本身解讀為他們獨特的平衡機制。
+- 使用者訊息會提供【選擇題彙總】平均 B 值與對應 Hex，這是主要錨點：最終 Hex 的 B 值必須落在此平均 ±15 以內。
+- 只有當第 11 題（開放題）與選擇題出現「強烈且明確」的方向性矛盾時，才可在錨點基礎上位移一階（±10），且必須在分析中誠實指出這個張力。不得因為「務實 / 內斂 / 沉穩」等泛用形容就往 #4D4D4D 收攏——請根據錨點忠實對應。
 - 綜合評估後，得出一個最終的 Hex code。不需要 B 數值。
 - Hex code 只能是這十一種的其中一種：#000000, #1A1A1A, #333333, #4D4D4D, #666666, #808080, #999999, #B3B3B3, #CCCCCC, #E6E6E6, #FFFFFF。
 
@@ -59,7 +59,7 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 - 平衡特質：內省與行動的平衡點，能冷靜地規劃一切。
 
 #4D4D4D (B=30) 中暗灰 · 堅忍、務實
-- 深灰偏好者常表現務實、不希望給自己找麻煩；從明度情緒曲線看，進入「低積極／低消極」區域，像情緒上的起點，蓄勢待發。
+- 保有明顯的內斂與克制，同時開始向外釋放少許重量；不是「預設安全牌」，而是清楚選擇把重心放在低調而穩定的一側。
 - 平衡特質：深藏不露的代表，在自我克制與外界反應間找到務實平衡。
 
 #666666 (B=40) 中灰 · 穩健、緩衝
@@ -111,21 +111,40 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 
 function buildUserPrompt(input: z.infer<typeof InputSchema>): string {
   const lines: string[] = ["以下為觀眾填答："];
+  const picked: number[] = [];
   input.questions.forEach((q, i) => {
     const a = input.answers[i];
     if (a < 0) {
       lines.push(`Q${i + 1}（未作答）：${q.prompt}`);
       return;
     }
+    picked.push(q.tiers[a]);
     lines.push(
       `Q${i + 1}：${q.prompt}\n  → 選擇：${q.options[a]}（傾向 B≈${q.tiers[a]}）`,
     );
   });
+  const avgB = picked.length
+    ? Math.round(picked.reduce((a, b) => a + b, 0) / picked.length)
+    : 50;
+  const snapped = Math.max(0, Math.min(100, Math.round(avgB / 10) * 10));
+  lines.push("");
+  lines.push(
+    `【選擇題彙總】平均 B ≈ ${avgB}（就近十位對應 Hex：${snappedToHex(snapped)}）。此為主要錨點。`,
+  );
   lines.push("");
   lines.push(
     `Q11（開放題）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
   );
   return lines.join("\n");
+}
+
+function snappedToHex(b: number): string {
+  const map: Record<number, string> = {
+    0: "#000000", 10: "#1A1A1A", 20: "#333333", 30: "#4D4D4D",
+    40: "#666666", 50: "#808080", 60: "#999999", 70: "#B3B3B3",
+    80: "#CCCCCC", 90: "#E6E6E6", 100: "#FFFFFF",
+  };
+  return map[b] ?? "#808080";
 }
 
 async function loadReferenceBlock(): Promise<string> {
