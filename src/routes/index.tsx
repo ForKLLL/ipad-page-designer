@@ -1303,7 +1303,7 @@ function GalleryScreen({
               height: LOGO_BOX.h,
             }}
           >
-            <SplitWaveLogo size={`${Math.min(LOGO_BOX.w, 420)}px`} />
+            <SplitWaveLogo size={`${Math.min(LOGO_BOX.w, 420)}px`} animated />
           </div>
 
           {placements.map((p) => (
