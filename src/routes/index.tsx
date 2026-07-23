@@ -1465,7 +1465,7 @@ function SplitWaveLogo({
   size?: string;
   animated?: boolean;
 }) {
-  const uid = React.useId().replace(/:/g, "");
+  const uid = useId().replace(/:/g, "");
   const clipA = `wave-clip-a-${uid}`;
   const clipB = `wave-clip-b-${uid}`;
 
