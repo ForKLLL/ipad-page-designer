@@ -112,6 +112,33 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 【最終提醒 · 調色盤鎖定】輸出的 Hex 必須且只能是以下 11 種之一：#000000, #1A1A1A, #333333, #4D4D4D, #666666, #808080, #999999, #B3B3B3, #CCCCCC, #E6E6E6, #FFFFFF。任何其他 Hex 值都是無效的。`;
 
 
+const B_TO_NAME: Record<number, string> = {
+  0: "Black",
+  10: "Extreme Dark Grey",
+  20: "Dark Grey",
+  30: "Deep Grey",
+  40: "Medium Grey",
+  50: "Standard Grey",
+  60: "Medium Light Grey",
+  70: "Light Grey",
+  80: "Bright Grey",
+  90: "Extreme Light Grey",
+  100: "White",
+};
+
+function nameForB(b: number): string {
+  const snapped = Math.max(0, Math.min(100, Math.round(b / 10) * 10));
+  return B_TO_NAME[snapped] ?? "Standard Grey";
+}
+
+function directionLabel(b: number): string {
+  if (b <= 29) return "偏暗 / darker";
+  if (b <= 49) return "偏暗中性 / balanced-dark";
+  if (b === 50) return "中性 / balanced";
+  if (b <= 70) return "偏亮中性 / balanced-light";
+  return "偏亮 / lighter";
+}
+
 function buildUserPrompt(
   input: z.infer<typeof InputSchema>,
   freeTextB: number | null,
@@ -124,9 +151,10 @@ function buildUserPrompt(
       lines.push(`Q${i + 1}（未作答）：${q.prompt}`);
       return;
     }
-    picked.push(q.tiers[a]);
+    const b = q.tiers[a];
+    picked.push(b);
     lines.push(
-      `Q${i + 1}：${q.prompt}\n  → 選擇：${q.options[a]}（傾向 B≈${q.tiers[a]}）`,
+      `Q${i + 1}：${q.prompt}\n  → 選擇：${q.options[a]}（B≈${b}, ${nameForB(b)}）`,
     );
   });
   const choiceAvgB = picked.length
@@ -137,18 +165,25 @@ function buildUserPrompt(
     freeTextB === null
       ? choiceAvgB
       : Math.round((choiceAvgB * 2 + freeTextB) / 3);
-  const snapped = Math.max(0, Math.min(100, Math.round(combinedAvgB / 10) * 10));
+
+  const minB = picked.length ? Math.min(...picked) : 50;
+  const maxB = picked.length ? Math.max(...picked) : 50;
+  const spread = maxB - minB;
+  const direction = directionLabel(combinedAvgB);
 
   lines.push("");
+  lines.push(
+    `【選擇題 B 分佈】[${picked.join(", ")}]（min=${minB}, max=${maxB}, spread=${spread}）`,
+  );
   lines.push(
     `【選擇題平均】B ≈ ${choiceAvgB}${
       freeTextB === null
         ? "（開放題未填或無法估計，僅以選擇題為依據）"
-        : `；【開放題估計】B ≈ ${freeTextB}`
+        : `；【開放題估計】B ≈ ${freeTextB}（${nameForB(freeTextB)}）`
     }。`,
   );
   lines.push(
-    `【綜合錨點】(2×選擇題 + 1×開放題) 平均 B ≈ ${combinedAvgB}（就近十位對應 Hex：${snappedToHex(snapped)}）。此為**參考起點**，非硬性上下限；請以整體答案圖像為準，若離群答案或 Q11 意象確實改變了整體格式塔，可自由偏離此錨點。最終 Hex 必須是 11 色調色盤中的其中一個。`,
+    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）。這只是**方向性參考**，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、Q11 意象）自行判斷。最終 Hex 必須且只能是 11 色調色盤中的其中一個。`,
   );
   lines.push("");
   lines.push(
@@ -156,6 +191,7 @@ function buildUserPrompt(
   );
   return lines.join("\n");
 }
+
 
 async function classifyFreeTextB(
   apiKey: string,
