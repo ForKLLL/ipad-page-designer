@@ -1292,7 +1292,9 @@ function GalleryScreen({
             <ScatteredCard key={p.id} placed={p} />
           ))}
         </div>
+        </div>
       </div>
+
 
       <style>{`
         @keyframes cardFall {
