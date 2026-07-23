@@ -188,6 +188,7 @@ export const analyzeBalance = createServerFn({ method: "POST" })
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
+        max_tokens: data.lang === "en" ? 400 : 700,
         messages: [
           { role: "system", content: systemContent },
           { role: "user", content: buildUserPrompt(data) },
