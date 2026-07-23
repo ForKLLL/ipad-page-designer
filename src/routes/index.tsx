@@ -1271,14 +1271,23 @@ function GalleryScreen({
       {/* horizontally scrolling strip — vertically centered, scales up on wider screens */}
       <div className="relative flex flex-1 items-start justify-center overflow-hidden px-4" style={{ paddingTop: 56 }}>
         <div
+          style={{
+            width: isDesktop ? SCREEN_W * SCALE : "100%",
+            maxWidth: isDesktop ? SCREEN_W * SCALE : SCREEN_W,
+            height: isDesktop ? SCREEN_H * SCALE : SCREEN_H,
+          }}
+        >
+        <div
           ref={scrollerRef}
           className="relative"
           style={{
-            width: "100%",
+            width: SCREEN_W,
             maxWidth: SCREEN_W,
             height: SCREEN_H,
             overflowX: "auto",
             overflowY: "hidden",
+            transform: isDesktop ? `scale(${SCALE})` : undefined,
+            transformOrigin: "left top",
           }}
         >
         <div
