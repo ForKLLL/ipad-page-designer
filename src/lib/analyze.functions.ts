@@ -161,33 +161,52 @@ function buildUserPrompt(
     ? Math.round(picked.reduce((a, b) => a + b, 0) / picked.length)
     : 50;
 
-  const combinedAvgB =
-    freeTextB === null
-      ? choiceAvgB
-      : Math.round((choiceAvgB * 2 + freeTextB) / 3);
-
   const minB = picked.length ? Math.min(...picked) : 50;
   const maxB = picked.length ? Math.max(...picked) : 50;
   const spread = maxB - minB;
+
+  // Weighting: baseline 1:1 choice:freeText. When choice answers are
+  // high-variance (spread ≥ 40) the 4-option grid clearly didn't fit
+  // the person, so tilt further toward Q11 (1:2).
+  let combinedAvgB: number;
+  let weightNote: string;
+  if (freeTextB === null) {
+    combinedAvgB = choiceAvgB;
+    weightNote = "（開放題未填或無法估計，僅以選擇題為依據）";
+  } else if (spread >= 40) {
+    combinedAvgB = Math.round((choiceAvgB + freeTextB * 2) / 3);
+    weightNote = "（選擇題答案分散度高，Q11 權重加倍：choice:free = 1:2）";
+  } else {
+    combinedAvgB = Math.round((choiceAvgB + freeTextB) / 2);
+    weightNote = "（choice:free = 1:1）";
+  }
+
   const direction = directionLabel(combinedAvgB);
+  const divergence =
+    freeTextB !== null && Math.abs(freeTextB - choiceAvgB) >= 20;
 
   lines.push("");
   lines.push(
     `【選擇題 B 分佈】[${picked.join(", ")}]（min=${minB}, max=${maxB}, spread=${spread}）`,
   );
-  lines.push(
-    `【選擇題平均】B ≈ ${choiceAvgB}${
-      freeTextB === null
-        ? "（開放題未填或無法估計，僅以選擇題為依據）"
-        : `；【開放題估計】B ≈ ${freeTextB}（${nameForB(freeTextB)}）`
-    }。`,
-  );
-  lines.push(
-    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）。這只是**方向性參考**，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、Q11 意象）自行判斷。最終 Hex 必須且只能是 11 色調色盤中的其中一個。`,
-  );
+  lines.push(`【選擇題平均】B ≈ ${choiceAvgB}`);
   lines.push("");
   lines.push(
-    `Q11（開放題）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
+    `Q11（開放題 · 使用者自己的話 / the user's own words，不受 4 選項網格限制）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
+  );
+  if (freeTextB !== null) {
+    lines.push(`  → Q11 估計 B ≈ ${freeTextB}（${nameForB(freeTextB)}）`);
+  }
+  if (divergence) {
+    lines.push(
+      `  → ⚠ Q11 與選擇題方向明顯不一致（差距 ${Math.abs(
+        (freeTextB ?? 0) - choiceAvgB,
+      )}）。選擇題是被迫從 4 個選項中挑選，可能不貼合此人；請以 Q11 為主要依據，選擇題僅作為輔助紋理。`,
+    );
+  }
+  lines.push("");
+  lines.push(
+    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）${weightNote}。此為方向性參考，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、以及 Q11 使用者自己的語言）自行判斷。最終 Hex 必須且只能是 11 色調色盤中的其中一個。`,
   );
   return lines.join("\n");
 }
