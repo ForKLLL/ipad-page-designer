@@ -131,10 +131,17 @@ function nameForB(b: number): string {
 
 function directionLabel(b: number): string {
   if (b <= 29) return "偏暗 / darker";
-  if (b <= 49) return "偏暗中性 / balanced-dark";
-  if (b === 50) return "中性 / balanced";
+  if (b <= 50) return "偏暗中性 / balanced-dark";
   if (b <= 70) return "偏亮中性 / balanced-light";
   return "偏亮 / lighter";
+}
+
+// #808080 (B=50) is intentionally removed from the palette; nudge any
+// midpoint value toward 40 or 60 based on a tiebreaker.
+function avoidMidpoint(b: number, freeTextB: number | null): number {
+  if (b !== 50) return b;
+  if (freeTextB !== null && freeTextB !== 50) return freeTextB < 50 ? 40 : 60;
+  return 40;
 }
 
 function buildUserPrompt(
