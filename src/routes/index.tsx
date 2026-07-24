@@ -302,6 +302,7 @@ type SavedResult = {
   shade_name: string;
   hex: string;
   analysis: string;
+  free_text?: string | null;
   created_at?: string;
 };
 
@@ -1144,7 +1145,7 @@ function GalleryScreen({
     (async () => {
       const { data } = await supabase
         .from("results")
-        .select("id, b_value, shade_name, hex, analysis, created_at")
+        .select("id, b_value, shade_name, hex, analysis, free_text, created_at")
         .order("created_at", { ascending: false });
       if (!mounted) return;
       const rows = (data ?? []) as SavedResult[];
@@ -1424,19 +1425,36 @@ function ScatteredCard({ placed }: { placed: Placed }) {
           style={{ height: 1, backgroundColor: "rgba(0,0,0,0.12)" }}
         />
 
-        <p
-          className="flex-1"
-          style={{
-            fontFamily: "'Noto Serif TC', serif",
-            fontSize: 10,
-            lineHeight: 1.45,
-            color: "rgba(11,11,11,0.82)",
-            textAlign: "justify",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {result.analysis}
-        </p>
+        <div className="flex-1">
+          {result.free_text && (
+            <p
+              style={{
+                fontFamily: "'Noto Serif TC', serif",
+                fontSize: 10,
+                lineHeight: 1.45,
+                color: "rgba(11,11,11,0.65)",
+                fontStyle: "italic",
+                textAlign: "justify",
+                whiteSpace: "pre-wrap",
+                marginBottom: 6,
+              }}
+            >
+              “{result.free_text}”
+            </p>
+          )}
+          <p
+            style={{
+              fontFamily: "'Noto Serif TC', serif",
+              fontSize: 10,
+              lineHeight: 1.45,
+              color: "rgba(11,11,11,0.82)",
+              textAlign: "justify",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {result.analysis}
+          </p>
+        </div>
 
         <div className="mt-2 flex items-end justify-between">
           <SplitWaveLogo size="48px" />
