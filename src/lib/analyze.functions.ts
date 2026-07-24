@@ -186,6 +186,7 @@ function buildUserPrompt(
     weightNote = "（choice:free = 1:1）";
   }
 
+  combinedAvgB = avoidMidpoint(combinedAvgB, freeTextB);
   const direction = directionLabel(combinedAvgB);
   const divergence =
     freeTextB !== null && Math.abs(freeTextB - choiceAvgB) >= 20;
