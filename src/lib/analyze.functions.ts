@@ -92,7 +92,7 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 
 【理論依據（供內在推理，不必顯露於輸出）】
 - Valdez & Mehrabian (1994) 明度心理影響量化：Pleasure = 0.69B + 0.22S；Arousal = −0.31B + 0.60S；Dominance = −0.76B + 0.32S。明度越高越愉悅、越冷靜、越低控制感。
-- Jonauskaite & Dael et al. (2025)《Psychonomic Bulletin & Review》128 年系統綜述：亮色多對應積極情緒，暗色多對應消極；#000000 → 負面／高喚醒；#808080 → 負面／低喚醒（平靜典型）；#FFFFFF → 積極／低喚醒。
+- Jonauskaite & Dael et al. (2025)《Psychonomic Bulletin & Review》128 年系統綜述：亮色多對應積極情緒，暗色多對應消極；#000000 → 負面／高喚醒；#FFFFFF → 積極／低喚醒。
 - 德國 Max Planck 研究所：反射率 60–65% 的灰色（≈#999999）最能促進與放鬆、冥想相關的 α 腦波。
 - Eva Heller《色彩的性格》：白色連結純潔、開放、優雅、權力等社會象徵。
 - Adam D. Galinsky「著裝認知」(Enclothed Cognition)：白色象徵可增強注意力控制。
