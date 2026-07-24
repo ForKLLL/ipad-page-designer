@@ -1,35 +1,26 @@
 ## Goal
-Make Q11 (the open-ended question) a first-class signal in the analysis, not a minor tiebreaker. It should meaningfully shift the result when the free text contradicts or nuances the multiple-choice pattern — because that's exactly when a person "doesn't fit" the 11 scales.
+Make `#808080` (Standard Grey, B=50) unreachable so results always land on one of the other 10 shades. Rationale: the exact psychological middle is implausible; forcing a lean (dark or light) produces more honest readings.
 
-## Why this needs changing
-Right now in `src/lib/analyze.functions.ts`:
-- The combined anchor is `(choiceAvgB * 2 + freeTextB) / 3` — Q11 is worth **half** of the choice average.
-- The prompt frames Q11 as just "Q11 (open question)" at the bottom, with no instruction that it can override the choice pattern.
-- The system prompt mentions Q11 imagery in passing but never says "when Q11 diverges from the choices, trust Q11 more, because the choices are a forced 4-option grid and Q11 is the person's own words."
+## Changes (all in `src/lib/analyze.functions.ts`, no UI/questionnaire edits)
 
-Net effect: mixed choices + a strong Q11 image still collapse toward the choice average.
+### 1. Remove #808080 from the allowed palette
+- Delete `#808080` from `HEX_TO_B`, `snappedToHex`, and both palette-lock lines in `SYSTEM_PROMPT` (the intro rule and the "最終提醒 · 調色盤鎖定" footer). The allowed set becomes 10 hexes: `#000000, #1A1A1A, #333333, #4D4D4D, #666666, #999999, #B3B3B3, #CCCCCC, #E6E6E6, #FFFFFF`.
+- Do the same in the English `langDirective` mapping list.
+- Remove the `#808080` entry from the color-guide section of `SYSTEM_PROMPT` entirely (so the model has no description to anchor to).
 
-## Changes (all in `src/lib/analyze.functions.ts`, prompt-only)
+### 2. Add an explicit "no exact middle" rule to the system prompt
+Add one line in 【Input 數據處理邏輯】: 人的內在狀態幾乎不會落在絕對正中，因此 `#808080` 不在可選調色盤中；當整體圖像看似中性時，請根據 Q11 語感與答案分佈的細微傾向，果斷選擇 `#666666`（偏暗中性）或 `#999999`（偏亮中性），不要停在中點。
 
-### 1. Rebalance the anchor weighting
-Change the combined anchor from `2:1` (choice:free) to roughly `1:1`, and when the choice answers are high-variance (spread ≥ 40), tilt it further toward Q11 (e.g. `1:2`). Rationale: high spread = the person didn't fit the grid, so their own words should lead.
+### 3. Nudge the direction label and anchor away from 50
+- In `directionLabel`, remove the `b === 50` "中性 / balanced" branch; collapse it into `balanced-dark` (≤50) vs `balanced-light` (>50, ≤70).
+- In `buildUserPrompt`, when `combinedAvgB === 50`, bump it to `40` or `60` based on which side Q11's `freeTextB` leans (default to `40` if Q11 is unavailable or also exactly 50 — matches the more common introspective lean; noted in the plan so it's a conscious tiebreaker, not silent).
 
-### 2. Elevate Q11 in the user prompt
-- Move Q11 up so it's presented alongside the choice summary, not as a trailing footnote.
-- Label it explicitly as "使用者自己的話 / the user's own words" and note it is unconstrained by the 4-option grid.
-- Print the free-text B estimate + color name next to it, and flag when it diverges from the choice average (e.g. `|freeTextB - choiceAvgB| ≥ 20` → "Q11 與選擇題方向不一致，請以 Q11 為主要依據").
+### 4. Fallback snapping never returns 50
+- In the RGB-average fallback inside `analyzeBalance` and in `classifyFreeTextB`'s snap, if a computed value snaps to 50, push it to 40 (dark tiebreak) or 60 based on the raw value's sub-decile remainder (≥5 → 60, else 40). This guarantees no code path silently produces `#808080` even if the model ignores the rule.
 
-### 3. Update the system prompt guidance on Q11
-Add one short paragraph in the 【Input 數據處理邏輯】 section:
-- Choices are a forced 4-option grid and may not fit the person; Q11 is their own language and carries equal or greater weight.
-- When Q11 clearly contradicts the choice pattern, follow Q11.
-- When Q11 nuances the choices (same direction, different texture), let it refine the final Hex within that direction.
-
-### 4. Keep everything else intact
-- No changes to `SYSTEM_PROMPT` color guide, question tiers, UI, scoring in `src/routes/index.tsx`, or the 11-hex palette lock.
-- `classifyFreeTextB` and the direction-label logic stay as-is.
+### 5. Existing results are unaffected
+No migration; historic gallery cards showing #808080 stay as-is. Only new analyses are constrained.
 
 ## Out of scope
-- Changing the questionnaire itself or the tier values.
-- Changing the free-text classifier model or its 0–100 snapping.
-- Any UI or gallery changes.
+- Question tier values, UI, gallery layout, Q11 weighting logic (kept from the previous plan).
+- Removing any other shade.
