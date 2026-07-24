@@ -21,7 +21,6 @@ const HEX_TO_B: Record<string, number> = {
   "#333333": 20,
   "#4D4D4D": 30,
   "#666666": 40,
-  "#808080": 50,
   "#999999": 60,
   "#B3B3B3": 70,
   "#CCCCCC": 80,
@@ -43,7 +42,8 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 - 請把 11 題視為一個**整體圖像**來閱讀：留意單一亮點或暗點、答案之間的張力、以及開放題與選擇題的互相補足或矛盾。若一個明顯的離群答案或強烈的 Q11 意象真正重塑了整體圖像，請忠實反映，不必為了貼近平均而抹平它；若答案呈現雙極或內在拉扯，請在分析中誠實指出這份張力，並選擇最能代表整體格式塔（gestalt）的 Hex。
 - 不要因為「務實 / 內斂 / 沉穩」等泛用形容就反射性地往 #4D4D4D 收攏；請以整體答案圖像為準。
 - 綜合評估後，得出一個最終的 Hex code。不需要 B 數值。
-- Hex code **只能**是這十一種的其中一種：#000000, #1A1A1A, #333333, #4D4D4D, #666666, #808080, #999999, #B3B3B3, #CCCCCC, #E6E6E6, #FFFFFF。絕對不得輸出這 11 種以外的任何 Hex 值。
+- 【中點禁區】人的內在狀態幾乎不可能落在絕對正中，因此 #808080（B=50）已從調色盤中移除，不得輸出。當整體圖像看似中性時，請根據 Q11 語感與答案分佈的細微傾向，果斷選擇 #666666（偏暗中性）或 #999999（偏亮中性），不要停在中點。
+- Hex code **只能**是這十種的其中一種：#000000, #1A1A1A, #333333, #4D4D4D, #666666, #999999, #B3B3B3, #CCCCCC, #E6E6E6, #FFFFFF。絕對不得輸出這 10 種以外的任何 Hex 值（尤其禁止 #808080）。
 
 【十一種顏色的解讀（B = HSB 的 Brightness）】
 
@@ -68,9 +68,6 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 - 常與誠懇、沉穩相關；偏好灰色者務實理性，善於控制情緒以免痛苦。
 - 平衡特質：生活中的緩衝區，確保不在情緒上大喜大悲。
 
-#808080 (B=50) 標準灰 · 平和、中立
-- 研究證實與「低效價（負面）、低喚醒」相關；完全接納「灰色是感覺的終結」，代表一種絕對、不可動搖的平靜。
-- 平衡特質：情感與理性、進取與保守、激動與平靜的終極平衡態。
 
 #999999 (B=60) 中淺灰 · 從容、接納
 - 明度提升後轉向「積極、低喚醒」象限，意味著積極的平靜；保有高度專注與可信賴感，同時向外傳遞接納訊號。
@@ -95,7 +92,7 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 
 【理論依據（供內在推理，不必顯露於輸出）】
 - Valdez & Mehrabian (1994) 明度心理影響量化：Pleasure = 0.69B + 0.22S；Arousal = −0.31B + 0.60S；Dominance = −0.76B + 0.32S。明度越高越愉悅、越冷靜、越低控制感。
-- Jonauskaite & Dael et al. (2025)《Psychonomic Bulletin & Review》128 年系統綜述：亮色多對應積極情緒，暗色多對應消極；#000000 → 負面／高喚醒；#808080 → 負面／低喚醒（平靜典型）；#FFFFFF → 積極／低喚醒。
+- Jonauskaite & Dael et al. (2025)《Psychonomic Bulletin & Review》128 年系統綜述：亮色多對應積極情緒，暗色多對應消極；#000000 → 負面／高喚醒；#FFFFFF → 積極／低喚醒。
 - 德國 Max Planck 研究所：反射率 60–65% 的灰色（≈#999999）最能促進與放鬆、冥想相關的 α 腦波。
 - Eva Heller《色彩的性格》：白色連結純潔、開放、優雅、權力等社會象徵。
 - Adam D. Galinsky「著裝認知」(Enclothed Cognition)：白色象徵可增強注意力控制。
@@ -110,7 +107,7 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 
 請只輸出繁體中文分析文字，不要任何 markdown、標題或額外註解。第一句必須符合格式「你的測驗結果指向了 #XXXXXX [顏色名稱]。」
 
-【最終提醒 · 調色盤鎖定】輸出的 Hex 必須且只能是以下 11 種之一：#000000, #1A1A1A, #333333, #4D4D4D, #666666, #808080, #999999, #B3B3B3, #CCCCCC, #E6E6E6, #FFFFFF。任何其他 Hex 值都是無效的。`;
+【最終提醒 · 調色盤鎖定】輸出的 Hex 必須且只能是以下 10 種之一：#000000, #1A1A1A, #333333, #4D4D4D, #666666, #999999, #B3B3B3, #CCCCCC, #E6E6E6, #FFFFFF。禁止輸出 #808080 或其他任何 Hex 值。`;
 
 
 const B_TO_NAME: Record<number, string> = {
@@ -134,10 +131,17 @@ function nameForB(b: number): string {
 
 function directionLabel(b: number): string {
   if (b <= 29) return "偏暗 / darker";
-  if (b <= 49) return "偏暗中性 / balanced-dark";
-  if (b === 50) return "中性 / balanced";
+  if (b <= 50) return "偏暗中性 / balanced-dark";
   if (b <= 70) return "偏亮中性 / balanced-light";
   return "偏亮 / lighter";
+}
+
+// #808080 (B=50) is intentionally removed from the palette; nudge any
+// midpoint value toward 40 or 60 based on a tiebreaker.
+function avoidMidpoint(b: number, freeTextB: number | null): number {
+  if (b !== 50) return b;
+  if (freeTextB !== null && freeTextB !== 50) return freeTextB < 50 ? 40 : 60;
+  return 40;
 }
 
 function buildUserPrompt(
@@ -182,6 +186,7 @@ function buildUserPrompt(
     weightNote = "（choice:free = 1:1）";
   }
 
+  combinedAvgB = avoidMidpoint(combinedAvgB, freeTextB);
   const direction = directionLabel(combinedAvgB);
   const divergence =
     freeTextB !== null && Math.abs(freeTextB - choiceAvgB) >= 20;
@@ -207,7 +212,7 @@ function buildUserPrompt(
   }
   lines.push("");
   lines.push(
-    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）${weightNote}。此為方向性參考，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、以及 Q11 使用者自己的語言）自行判斷。最終 Hex 必須且只能是 11 色調色盤中的其中一個。`,
+    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）${weightNote}。此為方向性參考，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、以及 Q11 使用者自己的語言）自行判斷。最終 Hex 必須且只能是 10 色調色盤中的其中一個（#808080 已被排除）。`,
   );
   return lines.join("\n");
 }
@@ -248,19 +253,28 @@ async function classifyFreeTextB(
     if (!m) return null;
     const n = parseInt(m[0], 10);
     if (!Number.isFinite(n)) return null;
-    return Math.max(0, Math.min(100, Math.round(n / 10) * 10));
+    return snapAwayFromMid(n);
   } catch {
     return null;
   }
 }
 
+// Snap 0..100 to nearest decile, but never return 50 (#808080 is excluded).
+// Sub-decile remainder ≥ 5 → 60, else 40.
+function snapAwayFromMid(n: number): number {
+  const clamped = Math.max(0, Math.min(100, n));
+  const snapped = Math.max(0, Math.min(100, Math.round(clamped / 10) * 10));
+  if (snapped !== 50) return snapped;
+  return clamped - 50 >= 0 ? 60 : 40;
+}
+
 function snappedToHex(b: number): string {
   const map: Record<number, string> = {
     0: "#000000", 10: "#1A1A1A", 20: "#333333", 30: "#4D4D4D",
-    40: "#666666", 50: "#808080", 60: "#999999", 70: "#B3B3B3",
+    40: "#666666", 60: "#999999", 70: "#B3B3B3",
     80: "#CCCCCC", 90: "#E6E6E6", 100: "#FFFFFF",
   };
-  return map[b] ?? "#808080";
+  return map[b] ?? "#666666";
 }
 
 async function loadReferenceBlock(): Promise<string> {
@@ -314,7 +328,7 @@ export const analyzeBalance = createServerFn({ method: "POST" })
     ]);
     const langDirective =
       data.lang === "en"
-        ? `\n\n【Output Language Override】Respond in English only. The first sentence MUST follow this exact format: "Your result points to #XXXXXX [Color Name]." Use the color's English name mapped strictly as: #000000 Black, #1A1A1A Extreme Dark Grey, #333333 Dark Grey, #4D4D4D Deep Grey, #666666 Medium Grey, #808080 Standard Grey, #999999 Medium Light Grey, #B3B3B3 Light Grey, #CCCCCC Bright Grey, #E6E6E6 Extreme Light Grey, #FFFFFF White. Keep the same three-tier structure (Mechanism / Mapping / Fluidity). Keep the entire response strictly under 200 words — self-condense if approaching the limit while still closing all three tiers. Do NOT use Markdown, headings, or extra annotations.`
+        ? `\n\n【Output Language Override】Respond in English only. The first sentence MUST follow this exact format: "Your result points to #XXXXXX [Color Name]." Use the color's English name mapped strictly as: #000000 Black, #1A1A1A Extreme Dark Grey, #333333 Dark Grey, #4D4D4D Deep Grey, #666666 Medium Grey, #999999 Medium Light Grey, #B3B3B3 Light Grey, #CCCCCC Bright Grey, #E6E6E6 Extreme Light Grey, #FFFFFF White. #808080 Standard Grey is NOT an option and must never be used. Keep the same three-tier structure (Mechanism / Mapping / Fluidity). Keep the entire response strictly under 200 words — self-condense if approaching the limit while still closing all three tiers. Do NOT use Markdown, headings, or extra annotations.`
         : "";
     const systemContent = SYSTEM_PROMPT + referenceBlock + langDirective;
 
@@ -344,25 +358,26 @@ export const analyzeBalance = createServerFn({ method: "POST" })
     };
     const content = json.choices?.[0]?.message?.content?.trim() ?? "";
 
-    let bValue = 50;
+    // Default fallback: lean dark (40) rather than the excluded midpoint 50.
+    let bValue = 40;
     const hexMatch = content.match(/#([0-9A-Fa-f]{6})/);
     if (hexMatch) {
       const hex = `#${hexMatch[1].toUpperCase()}`;
       if (hex in HEX_TO_B) {
         bValue = HEX_TO_B[hex];
       } else {
-        // fallback: derive from RGB average, snap to nearest decile
+        // fallback: derive from RGB average, snap to nearest decile (never 50)
         const v = parseInt(hexMatch[1], 16);
         const r = (v >> 16) & 0xff;
         const g = (v >> 8) & 0xff;
         const b = v & 0xff;
         const avg = (r + g + b) / 3;
-        bValue = Math.max(0, Math.min(100, Math.round((avg / 255) * 10) * 10));
+        bValue = snapAwayFromMid((avg / 255) * 100);
       }
     } else {
       const bMatch = content.match(/B\s*=\s*(\d{1,3})/);
       if (bMatch) {
-        bValue = Math.max(0, Math.min(100, Math.round(parseInt(bMatch[1], 10) / 10) * 10));
+        bValue = snapAwayFromMid(parseInt(bMatch[1], 10));
       }
     }
 
