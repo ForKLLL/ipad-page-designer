@@ -38,7 +38,7 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 【Input 數據處理邏輯】
 - 選擇題通常對應不同程度的心理傾向（從防禦／內斂／暗調 → 敞開／外放／亮調）。
 - 使用者訊息會列出每一題所選選項對應的 B 值、開放題估計 B，以及【整體傾向】方向（加權平均後的 direction label）。這只是**方向性參考**，不是硬性框架，也未指定任何 Hex。
-- 【Q11 的權重原則 · 非常重要】選擇題是被迫從 4 個固定選項中挑選，很多人並不真正符合任何一個；Q11 是使用者用自己的語言描述的「理想平衡」，未被選項束縛。因此 Q11 至少與選擇題整體等重；當 Q11 與選擇題方向明顯不一致（訊息中會標示 ⚠），請以 Q11 為主要依據，選擇題僅作為輔助紋理；當 Q11 與選擇題方向一致但語感更細，Q11 用來在該方向內微調最終 Hex 的具體位置。
+- 【Q11 的權重原則 · 非常重要】Q11 是使用者用自己的語言描述的「理想平衡」，比單一選擇題略重（約等於兩題選擇題），但**不得超過** 10 題選擇題的整體重量。因此 Q11 的作用是**在選擇題所指出的方向內做細部微調**，例如把偏暗區間內的落點從 #333333 推向 #4D4D4D，或從 #999999 微調到 #B3B3B3。**絕對禁止**單憑一句 Q11 就把結果推到與選擇題整體方向相反的極端（例如選擇題整體偏暗、Q11 寫「白」，結果不可跳到 #FFFFFF 或 #E6E6E6）。當 Q11 與選擇題方向明顯不一致（訊息中會標示 ⚠），請在文字中誠實指出這份張力，但最終 Hex 仍應留在選擇題主導的方向裡，Q11 只能讓落點朝其語感方向鬆動一格。
 - 請把 11 題視為一個**整體圖像**來閱讀：留意單一亮點或暗點、答案之間的張力、以及開放題與選擇題的互相補足或矛盾。若一個明顯的離群答案或強烈的 Q11 意象真正重塑了整體圖像，請忠實反映，不必為了貼近平均而抹平它；若答案呈現雙極或內在拉扯，請在分析中誠實指出這份張力，並選擇最能代表整體格式塔（gestalt）的 Hex。
 - 不要因為「務實 / 內斂 / 沉穩」等泛用形容就反射性地往 #4D4D4D 收攏；請以整體答案圖像為準。
 - 綜合評估後，得出一個最終的 Hex code。不需要 B 數值。
@@ -170,20 +170,24 @@ function buildUserPrompt(
   const maxB = picked.length ? Math.max(...picked) : 50;
   const spread = maxB - minB;
 
-  // Weighting: baseline 1:1 choice:freeText. When choice answers are
-  // high-variance (spread ≥ 40) the 4-option grid clearly didn't fit
-  // the person, so tilt further toward Q11 (1:2).
+  // Weighting: Q11 counts as slightly heavier than a single choice
+  // question, but must not outweigh the 10 choice answers combined.
+  // Baseline choice:free ≈ 10:2 (Q11 ≈ two choice questions). When choice
+  // answers are very scattered (spread ≥ 40), bump Q11 slightly to
+  // 10:3, but it still cannot flip the overall direction.
   let combinedAvgB: number;
   let weightNote: string;
   if (freeTextB === null) {
     combinedAvgB = choiceAvgB;
     weightNote = "（開放題未填或無法估計，僅以選擇題為依據）";
   } else if (spread >= 40) {
-    combinedAvgB = Math.round((choiceAvgB + freeTextB * 2) / 3);
-    weightNote = "（選擇題答案分散度高，Q11 權重加倍：choice:free = 1:2）";
+    combinedAvgB = Math.round((choiceAvgB * 10 + freeTextB * 3) / 13);
+    weightNote =
+      "（選擇題分散度高，Q11 略微加重：choice:free ≈ 10:3；Q11 用來在選擇題方向內細部微調，不得反轉整體方向）";
   } else {
-    combinedAvgB = Math.round((choiceAvgB + freeTextB) / 2);
-    weightNote = "（choice:free = 1:1）";
+    combinedAvgB = Math.round((choiceAvgB * 10 + freeTextB * 2) / 12);
+    weightNote =
+      "（choice:free ≈ 10:2，Q11 約等於兩題選擇題的分量，用於在選擇題方向內細部微調）";
   }
 
   combinedAvgB = avoidMidpoint(combinedAvgB, freeTextB);
@@ -207,7 +211,7 @@ function buildUserPrompt(
     lines.push(
       `  → ⚠ Q11 與選擇題方向明顯不一致（差距 ${Math.abs(
         (freeTextB ?? 0) - choiceAvgB,
-      )}）。選擇題是被迫從 4 個選項中挑選，可能不貼合此人；請以 Q11 為主要依據，選擇題僅作為輔助紋理。`,
+      )}）。請在分析中誠實指出這份張力，但**最終 Hex 仍應以選擇題整體方向為主**，Q11 只能在該方向內微調位置；例如選擇題整體偏暗而 Q11 寫「白」，結果**不應**直接跳到 #FFFFFF，而應停留在偏暗區間、僅稍微朝亮側鬆動一格。`,
     );
   }
   lines.push("");
