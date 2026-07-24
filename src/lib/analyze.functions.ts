@@ -170,20 +170,21 @@ function buildUserPrompt(
   const maxB = picked.length ? Math.max(...picked) : 50;
   const spread = maxB - minB;
 
-  // Weighting: baseline 1:1 choice:freeText. When choice answers are
-  // high-variance (spread ≥ 40) the 4-option grid clearly didn't fit
-  // the person, so tilt further toward Q11 (1:2).
+  // Weighting: Q11 is a light nudge, not a veto. Default choice:freeText = 4:1.
+  // When choice answers are high-variance (spread ≥ 40) the 4-option grid
+  // clearly didn't fit the person, so give Q11 a bit more room (3:1) — but
+  // still never let it dominate.
   let combinedAvgB: number;
   let weightNote: string;
   if (freeTextB === null) {
     combinedAvgB = choiceAvgB;
     weightNote = "（開放題未填或無法估計，僅以選擇題為依據）";
   } else if (spread >= 40) {
-    combinedAvgB = Math.round((choiceAvgB + freeTextB * 2) / 3);
-    weightNote = "（選擇題答案分散度高，Q11 權重加倍：choice:free = 1:2）";
+    combinedAvgB = Math.round((choiceAvgB * 3 + freeTextB) / 4);
+    weightNote = "（選擇題答案分散度高，Q11 權重略為提升：choice:free = 3:1）";
   } else {
-    combinedAvgB = Math.round((choiceAvgB + freeTextB) / 2);
-    weightNote = "（choice:free = 1:1）";
+    combinedAvgB = Math.round((choiceAvgB * 4 + freeTextB) / 5);
+    weightNote = "（choice:free = 4:1，Q11 僅作為方向內的微調）";
   }
 
   combinedAvgB = avoidMidpoint(combinedAvgB, freeTextB);
@@ -207,7 +208,7 @@ function buildUserPrompt(
     lines.push(
       `  → ⚠ Q11 與選擇題方向明顯不一致（差距 ${Math.abs(
         (freeTextB ?? 0) - choiceAvgB,
-      )}）。選擇題是被迫從 4 個選項中挑選，可能不貼合此人；請以 Q11 為主要依據，選擇題僅作為輔助紋理。`,
+      )}）。此時仍以選擇題整體為主要依據，Q11 只用來在該方向內選擇偏亮或偏暗的鄰近色；最多相對選擇題平均往 Q11 方向移動 1–2 個色階，不得跳到光譜另一端。`,
     );
   }
   lines.push("");
