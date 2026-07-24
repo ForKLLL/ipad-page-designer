@@ -1,23 +1,13 @@
-## Goal
-On the shared gallery cards, display the participant’s Q11 free-text answer as the first row of the analysis block, in italic style. The AI-generated analysis follows directly underneath.
+## What's happening
 
-## Changes
+The gallery cards already show the participant's Q11 free-text as an italic quote above the analysis. But the personal **result page** (shown right after they finish the test) only renders the AI analysis — the typed-in answer is never displayed back to them there. That's the gap.
 
-### 1. Fetch `free_text` for gallery cards
-- Update the `SavedResult` type in `src/routes/index.tsx` to include `free_text?: string | null`.
-- Add `free_text` to the Supabase `select(...)` in the gallery initial-load query.
-- Realtime INSERT payloads already carry the full inserted row, so new cards will include `free_text` without extra changes.
+## Change
 
-### 2. Render Q11 answer as the italic first row
-- In the `ScatteredCard` component, render `result.free_text` above `result.analysis` when it exists.
-- Style it with `fontStyle: "italic"`, a slightly muted opacity, and a small bottom margin so it reads as the user’s own quote.
-- If `free_text` is empty/null, skip the row and show only the analysis (no layout gaps).
+In `src/routes/index.tsx`, update `ResultScreen` to also receive and render the free-text answer as an italic quote, matching the gallery card treatment.
 
-### 3. Preserve existing behavior
-- The personal result screen stays unchanged.
-- No prompt, scoring, or database schema changes.
+1. Pass `freeText` into `ResultScreen` from the parent (`stage.kind === "result"` render site).
+2. In `ResultScreen`, if `freeText` is non-empty, render it above the first analysis paragraph as an italic quoted line using `Noto Serif TC`, muted ink color, wrapped in curly quotes — same style as `ScatteredCard` in the gallery.
+3. No changes to scoring, database, or gallery.
 
-## Verification
-- Submit a test answer with Q11 text filled in.
-- Open the gallery and confirm the card shows the Q11 answer in italics at the top of the analysis block, followed by the AI analysis.
-- Submit a test with Q11 empty and confirm the card still displays only the analysis.
+Nothing else changes.
