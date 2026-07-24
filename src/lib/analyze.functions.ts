@@ -358,25 +358,26 @@ export const analyzeBalance = createServerFn({ method: "POST" })
     };
     const content = json.choices?.[0]?.message?.content?.trim() ?? "";
 
-    let bValue = 50;
+    // Default fallback: lean dark (40) rather than the excluded midpoint 50.
+    let bValue = 40;
     const hexMatch = content.match(/#([0-9A-Fa-f]{6})/);
     if (hexMatch) {
       const hex = `#${hexMatch[1].toUpperCase()}`;
       if (hex in HEX_TO_B) {
         bValue = HEX_TO_B[hex];
       } else {
-        // fallback: derive from RGB average, snap to nearest decile
+        // fallback: derive from RGB average, snap to nearest decile (never 50)
         const v = parseInt(hexMatch[1], 16);
         const r = (v >> 16) & 0xff;
         const g = (v >> 8) & 0xff;
         const b = v & 0xff;
         const avg = (r + g + b) / 3;
-        bValue = Math.max(0, Math.min(100, Math.round((avg / 255) * 10) * 10));
+        bValue = snapAwayFromMid((avg / 255) * 100);
       }
     } else {
       const bMatch = content.match(/B\s*=\s*(\d{1,3})/);
       if (bMatch) {
-        bValue = Math.max(0, Math.min(100, Math.round(parseInt(bMatch[1], 10) / 10) * 10));
+        bValue = snapAwayFromMid(parseInt(bMatch[1], 10));
       }
     }
 
