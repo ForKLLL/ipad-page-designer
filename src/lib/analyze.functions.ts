@@ -253,19 +253,28 @@ async function classifyFreeTextB(
     if (!m) return null;
     const n = parseInt(m[0], 10);
     if (!Number.isFinite(n)) return null;
-    return Math.max(0, Math.min(100, Math.round(n / 10) * 10));
+    return snapAwayFromMid(n);
   } catch {
     return null;
   }
 }
 
+// Snap 0..100 to nearest decile, but never return 50 (#808080 is excluded).
+// Sub-decile remainder ≥ 5 → 60, else 40.
+function snapAwayFromMid(n: number): number {
+  const clamped = Math.max(0, Math.min(100, n));
+  const snapped = Math.max(0, Math.min(100, Math.round(clamped / 10) * 10));
+  if (snapped !== 50) return snapped;
+  return clamped - 50 >= 0 ? 60 : 40;
+}
+
 function snappedToHex(b: number): string {
   const map: Record<number, string> = {
     0: "#000000", 10: "#1A1A1A", 20: "#333333", 30: "#4D4D4D",
-    40: "#666666", 50: "#808080", 60: "#999999", 70: "#B3B3B3",
+    40: "#666666", 60: "#999999", 70: "#B3B3B3",
     80: "#CCCCCC", 90: "#E6E6E6", 100: "#FFFFFF",
   };
-  return map[b] ?? "#808080";
+  return map[b] ?? "#666666";
 }
 
 async function loadReferenceBlock(): Promise<string> {
