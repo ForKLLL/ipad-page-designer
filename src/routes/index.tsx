@@ -453,6 +453,7 @@ function BalancEApp() {
               lang={lang}
               shade={shadeForB(stage.bValue)}
               analysis={stage.analysis}
+              freeText={freeText}
               onGallery={() => setStage({ kind: "gallery" })}
               onRestart={restart}
             />
@@ -876,18 +877,21 @@ function ResultScreen({
   lang,
   shade,
   analysis,
+  freeText,
   onGallery,
   onRestart,
 }: {
   lang: Lang;
   shade: Shade;
   analysis: string;
+  freeText: string;
   onGallery: () => void;
   onRestart: () => void;
 }) {
   const textOnSwatch = shade.bValue > 55 ? "#222" : "#f2efee";
   // Split analysis into two paragraphs — first ~2 sentences, rest second.
   const paragraphs = useMemo(() => splitAnalysis(analysis), [analysis]);
+  const quote = freeText.trim();
 
   return (
     <div className="flex flex-1 flex-col">
@@ -920,6 +924,18 @@ function ResultScreen({
           <h3 className="text-[40px] sm:text-[52px] leading-none" style={{ fontWeight: 700 }}>
             {shade.name}
           </h3>
+          {quote && (
+            <p
+              className="mt-6 whitespace-pre-line text-[15px] leading-[2]"
+              style={{
+                fontFamily: "'Noto Serif TC', serif",
+                fontStyle: "italic",
+                color: "rgba(11,11,11,0.6)",
+              }}
+            >
+              “{quote}”
+            </p>
+          )}
           <p
             className="mt-6 whitespace-pre-line text-[16px] leading-[2.2]"
             style={{ fontFamily: "'Noto Serif TC', serif" }}
