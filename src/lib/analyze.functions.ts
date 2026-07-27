@@ -252,11 +252,34 @@ function buildUserPrompt(
   const divergence =
     freeTextB !== null && Math.abs(freeTextB - choiceAvgB) >= 20;
 
+  // Quartile distribution of choice B values (0-25 / 26-50 / 51-75 / 76-100).
+  const dark = picked.filter((b) => b <= 25).length;
+  const midDark = picked.filter((b) => b > 25 && b <= 50).length;
+  const midLight = picked.filter((b) => b > 50 && b <= 75).length;
+  const light = picked.filter((b) => b > 75).length;
+  const extremeDarkQs: number[] = [];
+  const extremeLightQs: number[] = [];
+  picked.forEach((b, idx) => {
+    if (b <= 15) extremeDarkQs.push(idx + 1);
+    if (b >= 85) extremeLightQs.push(idx + 1);
+  });
+  const lopsidedDark = dark + midDark >= 6 || dark >= 4;
+  const lopsidedLight = light + midLight >= 6 || light >= 4;
+
   lines.push("");
   lines.push(
     `【選擇題 B 分佈】[${picked.join(", ")}]（min=${minB}, max=${maxB}, spread=${spread}）`,
   );
-  lines.push(`【選擇題平均】B ≈ ${choiceAvgB}`);
+  lines.push(
+    `【離群訊號】dark(0-25): ${dark}, mid-dark(26-50): ${midDark}, mid-light(51-75): ${midLight}, light(76-100): ${light}`,
+  );
+  if (extremeDarkQs.length) {
+    lines.push(`  → 極暗端答案（B≤15）出現於 Q${extremeDarkQs.join(", Q")}`);
+  }
+  if (extremeLightQs.length) {
+    lines.push(`  → 極亮端答案（B≥85）出現於 Q${extremeLightQs.join(", Q")}`);
+  }
+  lines.push(`【選擇題平均】B ≈ ${choiceAvgB}（僅為統計摘要，不是目標色）`);
   lines.push("");
   lines.push(
     `Q11（開放題 · 使用者自己的話 / the user's own words，不受 4 選項網格限制）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
@@ -284,7 +307,20 @@ function buildUserPrompt(
   }
   lines.push("");
   lines.push(
-    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）。此為方向性參考，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、Q11 使用者自己的語言、以及上面標示的 Q11 stance）自行判斷。最終 Hex 必須且只能是 10 色調色盤中的其中一個（#808080 已被排除）。`,
+    `【整體傾向 · 僅供參考，非目標】${direction}（加權平均 B ≈ ${combinedAvgB}）。這只是眾多訊號之一，**不是答案**；請把【離群訊號】、spread、Q11 stance 與語感當作同等或更重要的線索，避免只憑平均就把結果收攏到 #666666／#999999。`,
+  );
+  if (lopsidedDark) {
+    lines.push(
+      `【外圈提示 · 暗端】答案整體壓向暗端（dark=${dark}, mid-dark=${midDark}）；落點應離開中性四色，優先考慮 #333333、#1A1A1A，必要時 #000000。`,
+    );
+  }
+  if (lopsidedLight) {
+    lines.push(
+      `【外圈提示 · 亮端】答案整體壓向亮端（light=${light}, mid-light=${midLight}）；落點應離開中性四色，優先考慮 #CCCCCC、#E6E6E6，必要時 #FFFFFF。`,
+    );
+  }
+  lines.push(
+    `【中性四色細分】若確定落在中性區，請在 #4D4D4D／#666666／#999999／#B3B3B3 之間依 spread 與 Q11 語感細分，不要只在 #666666 與 #999999 之間二選一。`,
   );
   return lines.join("\n");
 }
