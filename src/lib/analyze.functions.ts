@@ -222,12 +222,35 @@ function buildUserPrompt(
 }
 
 
-async function classifyFreeTextB(
+type Stance =
+  | "embodiment"
+  | "aspiration"
+  | "rejection"
+  | "ambivalence"
+  | "description";
+
+const STANCE_SET: ReadonlySet<Stance> = new Set([
+  "embodiment",
+  "aspiration",
+  "rejection",
+  "ambivalence",
+  "description",
+]);
+
+const STANCE_LABEL_ZH: Record<Stance, string> = {
+  embodiment: "embodiment（描述當下所處的狀態）",
+  aspiration: "aspiration（描述嚮往但尚未擁有的狀態）",
+  rejection: "rejection（推開／排斥所描述的狀態）",
+  ambivalence: "ambivalence（同時被兩端拉扯）",
+  description: "description（中性意象，無明顯個人立場）",
+};
+
+async function classifyFreeText(
   apiKey: string,
   freeText: string,
-): Promise<number | null> {
+): Promise<{ b: number | null; stance: Stance }> {
   const trimmed = freeText.trim();
-  if (!trimmed) return null;
+  if (!trimmed) return { b: null, stance: "description" };
   try {
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -237,40 +260,41 @@ async function classifyFreeTextB(
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        max_tokens: 10,
+        max_tokens: 80,
+        response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
             content:
-              "You map a short free-text answer about a person's ideal state of 'balance' to a brightness value B on a 0-100 scale, where 0 = heaviest / most inward / darkest and 100 = lightest / most open / brightest. Reply with ONLY a single integer between 0 and 100 (snapped to the nearest 10). No words, no punctuation.",
+              "You read a short free-text answer about a person's ideal state of 'balance' and classify it on TWO axes.\n\n1) b: brightness on 0-100 (0 = heaviest / most inward / darkest, 100 = lightest / most open / brightest). Snap to the nearest 10.\n2) stance: how the writer relates to what they wrote. One of:\n   - embodiment: describes the state they currently inhabit (\"I am this quiet\").\n   - aspiration: a state they want but do not have (\"I hope to become whiter\").\n   - rejection: pushing away from the named state (\"I hate that glaring white\").\n   - ambivalence: pulled both ways (\"I want brightness but I fear it\").\n   - description: neutral imagery, no clear personal stance (\"like morning mist\").\n\nReply with ONLY a JSON object of the exact shape {\"b\": <int 0-100>, \"stance\": \"<one of the five>\"}. No prose, no markdown.",
           },
           { role: "user", content: trimmed },
         ],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { b: null, stance: "description" };
     const j = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
     };
     const raw = j.choices?.[0]?.message?.content?.trim() ?? "";
-    const m = raw.match(/\d{1,3}/);
-    if (!m) return null;
-    const n = parseInt(m[0], 10);
-    if (!Number.isFinite(n)) return null;
-    return snapAwayFromMid(n);
+    const parsed = JSON.parse(raw) as { b?: unknown; stance?: unknown };
+    const bNum =
+      typeof parsed.b === "number"
+        ? parsed.b
+        : typeof parsed.b === "string"
+          ? parseInt(parsed.b, 10)
+          : NaN;
+    const b = Number.isFinite(bNum) ? snapAwayFromMid(bNum) : null;
+    const stance: Stance =
+      typeof parsed.stance === "string" && STANCE_SET.has(parsed.stance as Stance)
+        ? (parsed.stance as Stance)
+        : "description";
+    return { b, stance };
   } catch {
-    return null;
+    return { b: null, stance: "description" };
   }
 }
 
-// Snap 0..100 to nearest decile, but never return 50 (#808080 is excluded).
-// Sub-decile remainder ≥ 5 → 60, else 40.
-function snapAwayFromMid(n: number): number {
-  const clamped = Math.max(0, Math.min(100, n));
-  const snapped = Math.max(0, Math.min(100, Math.round(clamped / 10) * 10));
-  if (snapped !== 50) return snapped;
-  return clamped - 50 >= 0 ? 60 : 40;
-}
 
 function snappedToHex(b: number): string {
   const map: Record<number, string> = {
