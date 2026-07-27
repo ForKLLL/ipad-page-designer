@@ -1,69 +1,55 @@
-## Goal
+## Symptom
 
-Stop treating Q11 as a one-dimensional brightness guess. Read it on two axes — **brightness** (dark ↔ light) and **stance** (how the participant relates to what they wrote) — and feed both into the main analyst so attitude actually influences the final Hex.
+Looking at the 30 most-recent submissions in the database, every result lands in a narrow band of #333333–#B3B3B3, and roughly two-thirds are #666666 (中灰) or #999999 (中淺灰). No submission has reached #1A1A1A/#000000 or #CCCCCC/#E6E6E6/#FFFFFF in recent memory. The scale is collapsing to a "medium-light grey by default" outcome.
 
-## Why
+## Root cause (confirmed from prompt + tier data)
 
-Today `classifyFreeTextB` asks only "how bright is this text, 0–100?" A sentence like *"white, but I can never reach it"* or *"I'm tired of how bright everything is"* returns ~90 and pulls the result lighter, even though the attitude is longing/rejection, not embodiment. The main analyst sees the raw text but has no explicit stance signal to weigh against the numeric B.
+Two forces push results toward the middle two shades:
+
+1. **Averaging math.** Each question's four options carry B ≈ 5–15 / 40–45 / 60–70 / 85–95. Averaging 10 answers almost always lands in 35–65, so `combinedAvgB` is nearly always labelled `balanced-dark` or `balanced-light`. Extremes require someone to pick the same-side option in almost every question, which rarely happens.
+2. **Prompt bias toward the two middle greys.** The system prompt currently says (paraphrasing lines 52 + Mapping guidance): "當整體圖像看似中性時，請根據 Q11 語感與答案分佈的細微傾向，果斷選擇 #666666 或 #999999。" Once the direction label is `balanced-*`, the model reads this as an explicit instruction to pick exactly those two hexes — so it does, almost every time.
+
+Q11 stance weighting, the divergence warning, and the aspiration/rejection scaling all correctly prevent Q11 from flipping the result, but they *also* keep the combined B firmly inside the 40–60 band, which the prompt then snaps to 中灰/中淺灰.
 
 ## Change (all in `src/lib/analyze.functions.ts`)
 
-### 1. Replace `classifyFreeTextB` with `classifyFreeText` returning two fields
+### 1. Stop collapsing "balanced-*" to only two hexes
 
-Single Gemini call, JSON output:
+Rewrite the midpoint clause so the model treats the 4 middle shades (`#4D4D4D`, `#666666`, `#999999`, `#B3B3B3`) as equally valid neutral landing points, and instructs it to use **spread, extremes, and Q11 imagery** — not the average alone — to decide which one:
 
-```
-{ "b": 0-100 (snapped to nearest 10, never 50),
-  "stance": "embodiment" | "aspiration" | "rejection" | "ambivalence" | "description" }
-```
+- Wide spread with dark outliers or dark Q11 imagery → prefer #4D4D4D.
+- Wide spread with bright outliers or bright Q11 imagery → prefer #B3B3B3.
+- Tight cluster near mid-dark → #666666.
+- Tight cluster near mid-light → #999999.
 
-Stance definitions given in the classifier system prompt:
-- **embodiment** — describes the state they currently inhabit ("我就是這樣的安靜")
-- **aspiration** — a state they want but don't have ("我希望能變得更白")
-- **rejection** — pushing away from the named state ("我討厭那種刺眼的白")
-- **ambivalence** — pulled both ways ("想要亮，但又害怕")
-- **description** — neutral imagery with no clear personal stance ("像清晨的霧")
+Explicitly forbid "default to #666666/#999999 whenever unsure".
 
-Keep the existing snap-away-from-50 logic on the returned `b`. If parsing fails, fall back to `{ b: null, stance: "description" }` so the rest of the flow stays intact.
+### 2. Report spread + extremes as first-class signals, not just the average
 
-### 2. Adjust weighting by stance in `buildUserPrompt`
+In `buildUserPrompt`, add a `【離群訊號】` line summarising:
+- How many answers sit in each quartile of the 0–100 range (e.g. `dark(0-25): 2, mid-dark(26-50): 5, mid-light(51-75): 2, light(76-100): 1`).
+- Whether any single question hit an extreme tier (B ≤ 15 or B ≥ 85) and which.
+- Q11 raw B and stance, restated next to the distribution so the model reads them together instead of after the average.
 
-The current 10:2 / 10:3 weighting stays as the baseline, but the effective Q11 weight is scaled by stance:
+Downweight the `【整體傾向】` line: keep it, but explicitly label it as "one of several signals, not the answer".
 
-- `embodiment` → full weight (current behavior)
-- `description` → full weight
-- `aspiration` → half weight, and mark the B as "aspirational, not current"
-- `rejection` → half weight and invert direction relative to choices (nudge *away* from the stated B, not toward it)
-- `ambivalence` → quarter weight; surface the tension explicitly
+### 3. Widen the reachable range for lopsided answer patterns
 
-The direction guardrail stays: Q11 still cannot flip the choice-driven direction; it only shifts one decile.
+When ≥ 6 of 10 choice answers sit in the same outer tier (B ≤ 25 or B ≥ 75), append a directive to the prompt: "圖像整體壓向 [暗/亮] 端，落點應離開中性四色，考慮 #333333/#1A1A1A（或 #CCCCCC/#E6E6E6）。" This gives the model explicit permission to reach the outer shades when the data warrants it, which today's prompt never grants.
 
-### 3. Surface stance to the main analyst
+### 4. Keep the palette, keep the midpoint-forbidden rule
 
-Add lines to the user prompt:
-
-```
-Q11 stance: aspiration (使用者描述的是嚮往的狀態，非當下)
-Q11 estimated B: 90 (aspirational, weight halved)
-Effective Q11 contribution: B≈70 @ weight 1 (of 12)
-```
-
-### 4. Update `SYSTEM_PROMPT` with a short "Q11 stance" clause
-
-Tell the analyst:
-- Read the stance tag alongside the raw Q11 text before deciding tone.
-- Aspiration/rejection mean the named brightness is *not* where the person currently sits — reflect the gap in the Mechanism paragraph.
-- Ambivalence is a signal to name the tension, not smooth it.
-- The final Hex still comes from the choice-driven direction; stance modulates *where inside that direction* the point lands and *how* the analysis reads.
+- Still exclude #808080. `snapAwayFromMid` stays.
+- Palette stays at the same 10 hexes.
+- Stance logic, Q11 weighting cap, and direction guardrail all stay unchanged.
 
 ## Out of scope
 
-- No changes to the 10-color palette, snapping rules, or midpoint exclusion.
-- No changes to the UI, gallery, DB schema, or scoring for the 10 choice questions.
-- No new model — reuse `google/gemini-2.5-flash` for both the classifier and main call.
+- No change to the 10-color palette or to the question tier values.
+- No change to Q11 stance classification, gallery, UI, or scoring for choice questions.
+- No new model — reuse `google/gemini-2.5-flash`.
 
 ## Technical notes
 
-- `classifyFreeText` uses `response_format: { type: "json_object" }` and a strict "reply with JSON only" system prompt; wrap the parse in try/catch and fall back to the safe default.
-- Keep the two calls parallel with `loadReferenceBlock` via `Promise.all`.
-- No schema-bound `Output.object` (per AI SDK guardrails); we parse the JSON manually and validate the stance against the allowed enum in code.
+- All edits live in `src/lib/analyze.functions.ts`: `SYSTEM_PROMPT` (midpoint clause), `buildUserPrompt` (new distribution summary + lopsided-pattern directive).
+- After the change, verify by re-running a few representative payloads mentally against the prompt and by watching new submissions for 中灰/中淺灰 dominance to drop below ~50%.
