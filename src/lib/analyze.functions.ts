@@ -144,9 +144,19 @@ function avoidMidpoint(b: number, freeTextB: number | null): number {
   return 40;
 }
 
+// Snap 0..100 to nearest decile, but never return 50 (#808080 is excluded).
+// Sub-decile remainder ≥ 5 → 60, else 40.
+function snapAwayFromMid(n: number): number {
+  const clamped = Math.max(0, Math.min(100, n));
+  const snapped = Math.max(0, Math.min(100, Math.round(clamped / 10) * 10));
+  if (snapped !== 50) return snapped;
+  return clamped - 50 >= 0 ? 60 : 40;
+}
+
 function buildUserPrompt(
   input: z.infer<typeof InputSchema>,
   freeTextB: number | null,
+  stance: Stance,
 ): string {
   const lines: string[] = ["以下為觀眾填答："];
   const picked: number[] = [];
@@ -170,27 +180,60 @@ function buildUserPrompt(
   const maxB = picked.length ? Math.max(...picked) : 50;
   const spread = maxB - minB;
 
-  // Weighting: Q11 counts as slightly heavier than a single choice
-  // question, but must not outweigh the 10 choice answers combined.
-  // Baseline choice:free ≈ 10:2 (Q11 ≈ two choice questions). When choice
-  // answers are very scattered (spread ≥ 40), bump Q11 slightly to
-  // 10:3, but it still cannot flip the overall direction.
-  let combinedAvgB: number;
-  let weightNote: string;
+  // Stance-scaled effective Q11 signal.
+  // - embodiment / description: use B as-is (attracts toward this value).
+  // - aspiration: half attraction — B describes wanting, not current state.
+  // - rejection: half repulsion — mirror across choiceAvgB so we nudge AWAY
+  //   from the named B rather than toward it.
+  // - ambivalence: quarter attraction — mostly signal-tension only.
+  let effectiveFreeB: number | null = freeTextB;
+  let effectiveFreeWeight = 0;
+  let stanceNote = "";
   if (freeTextB === null) {
-    combinedAvgB = choiceAvgB;
-    weightNote = "（開放題未填或無法估計，僅以選擇題為依據）";
-  } else if (spread >= 40) {
-    combinedAvgB = Math.round((choiceAvgB * 10 + freeTextB * 3) / 13);
-    weightNote =
-      "（選擇題分散度高，Q11 略微加重：choice:free ≈ 10:3；Q11 用來在選擇題方向內細部微調，不得反轉整體方向）";
+    stanceNote = "（開放題未填或無法估計，僅以選擇題為依據）";
   } else {
-    combinedAvgB = Math.round((choiceAvgB * 10 + freeTextB * 2) / 12);
-    weightNote =
-      "（choice:free ≈ 10:2，Q11 約等於兩題選擇題的分量，用於在選擇題方向內細部微調）";
+    switch (stance) {
+      case "embodiment":
+      case "description":
+        effectiveFreeB = freeTextB;
+        effectiveFreeWeight = spread >= 40 ? 3 : 2;
+        stanceNote =
+          stance === "embodiment"
+            ? "（Q11 屬 embodiment：描述當下狀態，正常權重）"
+            : "（Q11 屬 description：中性意象，正常權重）";
+        break;
+      case "aspiration":
+        effectiveFreeB = freeTextB;
+        effectiveFreeWeight = 1;
+        stanceNote =
+          "（Q11 屬 aspiration：使用者描述的是嚮往、非當下所在；權重減半，Hex 不應直接落在該亮度）";
+        break;
+      case "rejection": {
+        // Mirror the stated B across the choice average — the writer is
+        // pushing AWAY from that brightness.
+        const mirrored = Math.max(0, Math.min(100, 2 * choiceAvgB - freeTextB));
+        effectiveFreeB = snapAwayFromMid(mirrored);
+        effectiveFreeWeight = 1;
+        stanceNote = `（Q11 屬 rejection：使用者在推開所描述的亮度，方向取鏡像 B≈${effectiveFreeB}，權重減半）`;
+        break;
+      }
+      case "ambivalence":
+        effectiveFreeB = freeTextB;
+        effectiveFreeWeight = 1;
+        stanceNote =
+          "（Q11 屬 ambivalence：內在拉扯；權重四分之一左右，請在分析中誠實命名這份張力，不要抹平）";
+        break;
+    }
   }
 
-  combinedAvgB = avoidMidpoint(combinedAvgB, freeTextB);
+  const totalWeight = 10 + effectiveFreeWeight;
+  let combinedAvgB =
+    effectiveFreeB === null
+      ? choiceAvgB
+      : Math.round(
+          (choiceAvgB * 10 + effectiveFreeB * effectiveFreeWeight) / totalWeight,
+        );
+  combinedAvgB = avoidMidpoint(combinedAvgB, effectiveFreeB);
   const direction = directionLabel(combinedAvgB);
   const divergence =
     freeTextB !== null && Math.abs(freeTextB - choiceAvgB) >= 20;
@@ -204,22 +247,36 @@ function buildUserPrompt(
   lines.push(
     `Q11（開放題 · 使用者自己的話 / the user's own words，不受 4 選項網格限制）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
   );
+  lines.push(`  → Q11 stance：${STANCE_LABEL_ZH[stance]}`);
   if (freeTextB !== null) {
-    lines.push(`  → Q11 估計 B ≈ ${freeTextB}（${nameForB(freeTextB)}）`);
+    lines.push(`  → Q11 原始估計 B ≈ ${freeTextB}（${nameForB(freeTextB)}）`);
+    if (effectiveFreeB !== null && effectiveFreeB !== freeTextB) {
+      lines.push(
+        `  → Q11 有效 B ≈ ${effectiveFreeB}（stance 調整後，${nameForB(effectiveFreeB)}）`,
+      );
+    }
+    lines.push(
+      `  → Q11 有效權重：${effectiveFreeWeight} / ${totalWeight} ${stanceNote}`,
+    );
+  } else {
+    lines.push(`  → ${stanceNote}`);
   }
   if (divergence) {
     lines.push(
       `  → ⚠ Q11 與選擇題方向明顯不一致（差距 ${Math.abs(
         (freeTextB ?? 0) - choiceAvgB,
-      )}）。請在分析中誠實指出這份張力，但**最終 Hex 仍應以選擇題整體方向為主**，Q11 只能在該方向內微調位置；例如選擇題整體偏暗而 Q11 寫「白」，結果**不應**直接跳到 #FFFFFF，而應停留在偏暗區間、僅稍微朝亮側鬆動一格。`,
+      )}）。請在分析中誠實指出這份張力，但**最終 Hex 仍應以選擇題整體方向為主**，Q11 只能在該方向內微調位置；aspiration／rejection 尤其不應把結果推到使用者嚮往或排斥的那個極端。`,
     );
   }
   lines.push("");
   lines.push(
-    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）${weightNote}。此為方向性參考，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、以及 Q11 使用者自己的語言）自行判斷。最終 Hex 必須且只能是 10 色調色盤中的其中一個（#808080 已被排除）。`,
+    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）。此為方向性參考，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、Q11 使用者自己的語言、以及上面標示的 Q11 stance）自行判斷。最終 Hex 必須且只能是 10 色調色盤中的其中一個（#808080 已被排除）。`,
   );
   return lines.join("\n");
 }
+
+
+
 
 
 type Stance =
