@@ -39,6 +39,13 @@ const SYSTEM_PROMPT = `【Role & Context 角色與背景】你現在是一位在
 - 選擇題通常對應不同程度的心理傾向（從防禦／內斂／暗調 → 敞開／外放／亮調）。
 - 使用者訊息會列出每一題所選選項對應的 B 值、開放題估計 B，以及【整體傾向】方向（加權平均後的 direction label）。這只是**方向性參考**，不是硬性框架，也未指定任何 Hex。
 - 【Q11 的權重原則 · 非常重要】Q11 是使用者用自己的語言描述的「理想平衡」，比單一選擇題略重（約等於兩題選擇題），但**不得超過** 10 題選擇題的整體重量。因此 Q11 的作用是**在選擇題所指出的方向內做細部微調**，例如把偏暗區間內的落點從 #333333 推向 #4D4D4D，或從 #999999 微調到 #B3B3B3。**絕對禁止**單憑一句 Q11 就把結果推到與選擇題整體方向相反的極端（例如選擇題整體偏暗、Q11 寫「白」，結果不可跳到 #FFFFFF 或 #E6E6E6）。當 Q11 與選擇題方向明顯不一致（訊息中會標示 ⚠），請在文字中誠實指出這份張力，但最終 Hex 仍應留在選擇題主導的方向裡，Q11 只能讓落點朝其語感方向鬆動一格。
+- 【Q11 的 stance（態度軸）· 非常重要】每次填答，訊息中會附上 Q11 的 stance 標籤（embodiment／aspiration／rejection／ambivalence／description）。這是判斷「文字描述的亮度」與「使用者當下實際所在」之間關係的關鍵：
+  · embodiment：使用者描述的就是他此刻所在的狀態；Q11 的 B 可視為當下訊號。
+  · aspiration：使用者描述的是嚮往但尚未擁有的狀態；Q11 的 B 是「想去的地方」，**不是**當下位置。此時 Hex 不應直接落在該亮度，而應停在選擇題方向內，並在 Mechanism 段落中點出這份「向該亮度伸手」的動作。
+  · rejection：使用者在推開所描述的亮度；Q11 的 B 是「不想成為的樣子」，方向應**背離**該值。系統會把有效 B 做鏡像調整，請在分析中誠實命名這份推開的姿態。
+  · ambivalence：使用者同時被兩端拉扯；Q11 權重降低，**不要**把這份張力抹平成一個平均值，而是在 Mechanism 段落中直接命名這份拉扯，Hex 落在能承載張力的中性偏暗或中性偏亮位置。
+  · description：中性意象、無明顯個人立場；正常閱讀即可。
+  無論 stance 為何，最終 Hex 仍由選擇題整體方向主導，stance 只調整「Q11 這一票怎麼算」以及分析文字的語氣。
 - 請把 11 題視為一個**整體圖像**來閱讀：留意單一亮點或暗點、答案之間的張力、以及開放題與選擇題的互相補足或矛盾。若一個明顯的離群答案或強烈的 Q11 意象真正重塑了整體圖像，請忠實反映，不必為了貼近平均而抹平它；若答案呈現雙極或內在拉扯，請在分析中誠實指出這份張力，並選擇最能代表整體格式塔（gestalt）的 Hex。
 - 不要因為「務實 / 內斂 / 沉穩」等泛用形容就反射性地往 #4D4D4D 收攏；請以整體答案圖像為準。
 - 綜合評估後，得出一個最終的 Hex code。不需要 B 數值。
@@ -144,9 +151,19 @@ function avoidMidpoint(b: number, freeTextB: number | null): number {
   return 40;
 }
 
+// Snap 0..100 to nearest decile, but never return 50 (#808080 is excluded).
+// Sub-decile remainder ≥ 5 → 60, else 40.
+function snapAwayFromMid(n: number): number {
+  const clamped = Math.max(0, Math.min(100, n));
+  const snapped = Math.max(0, Math.min(100, Math.round(clamped / 10) * 10));
+  if (snapped !== 50) return snapped;
+  return clamped - 50 >= 0 ? 60 : 40;
+}
+
 function buildUserPrompt(
   input: z.infer<typeof InputSchema>,
   freeTextB: number | null,
+  stance: Stance,
 ): string {
   const lines: string[] = ["以下為觀眾填答："];
   const picked: number[] = [];
@@ -170,27 +187,60 @@ function buildUserPrompt(
   const maxB = picked.length ? Math.max(...picked) : 50;
   const spread = maxB - minB;
 
-  // Weighting: Q11 counts as slightly heavier than a single choice
-  // question, but must not outweigh the 10 choice answers combined.
-  // Baseline choice:free ≈ 10:2 (Q11 ≈ two choice questions). When choice
-  // answers are very scattered (spread ≥ 40), bump Q11 slightly to
-  // 10:3, but it still cannot flip the overall direction.
-  let combinedAvgB: number;
-  let weightNote: string;
+  // Stance-scaled effective Q11 signal.
+  // - embodiment / description: use B as-is (attracts toward this value).
+  // - aspiration: half attraction — B describes wanting, not current state.
+  // - rejection: half repulsion — mirror across choiceAvgB so we nudge AWAY
+  //   from the named B rather than toward it.
+  // - ambivalence: quarter attraction — mostly signal-tension only.
+  let effectiveFreeB: number | null = freeTextB;
+  let effectiveFreeWeight = 0;
+  let stanceNote = "";
   if (freeTextB === null) {
-    combinedAvgB = choiceAvgB;
-    weightNote = "（開放題未填或無法估計，僅以選擇題為依據）";
-  } else if (spread >= 40) {
-    combinedAvgB = Math.round((choiceAvgB * 10 + freeTextB * 3) / 13);
-    weightNote =
-      "（選擇題分散度高，Q11 略微加重：choice:free ≈ 10:3；Q11 用來在選擇題方向內細部微調，不得反轉整體方向）";
+    stanceNote = "（開放題未填或無法估計，僅以選擇題為依據）";
   } else {
-    combinedAvgB = Math.round((choiceAvgB * 10 + freeTextB * 2) / 12);
-    weightNote =
-      "（choice:free ≈ 10:2，Q11 約等於兩題選擇題的分量，用於在選擇題方向內細部微調）";
+    switch (stance) {
+      case "embodiment":
+      case "description":
+        effectiveFreeB = freeTextB;
+        effectiveFreeWeight = spread >= 40 ? 3 : 2;
+        stanceNote =
+          stance === "embodiment"
+            ? "（Q11 屬 embodiment：描述當下狀態，正常權重）"
+            : "（Q11 屬 description：中性意象，正常權重）";
+        break;
+      case "aspiration":
+        effectiveFreeB = freeTextB;
+        effectiveFreeWeight = 1;
+        stanceNote =
+          "（Q11 屬 aspiration：使用者描述的是嚮往、非當下所在；權重減半，Hex 不應直接落在該亮度）";
+        break;
+      case "rejection": {
+        // Mirror the stated B across the choice average — the writer is
+        // pushing AWAY from that brightness.
+        const mirrored = Math.max(0, Math.min(100, 2 * choiceAvgB - freeTextB));
+        effectiveFreeB = snapAwayFromMid(mirrored);
+        effectiveFreeWeight = 1;
+        stanceNote = `（Q11 屬 rejection：使用者在推開所描述的亮度，方向取鏡像 B≈${effectiveFreeB}，權重減半）`;
+        break;
+      }
+      case "ambivalence":
+        effectiveFreeB = freeTextB;
+        effectiveFreeWeight = 1;
+        stanceNote =
+          "（Q11 屬 ambivalence：內在拉扯；權重四分之一左右，請在分析中誠實命名這份張力，不要抹平）";
+        break;
+    }
   }
 
-  combinedAvgB = avoidMidpoint(combinedAvgB, freeTextB);
+  const totalWeight = 10 + effectiveFreeWeight;
+  let combinedAvgB =
+    effectiveFreeB === null
+      ? choiceAvgB
+      : Math.round(
+          (choiceAvgB * 10 + effectiveFreeB * effectiveFreeWeight) / totalWeight,
+        );
+  combinedAvgB = avoidMidpoint(combinedAvgB, effectiveFreeB);
   const direction = directionLabel(combinedAvgB);
   const divergence =
     freeTextB !== null && Math.abs(freeTextB - choiceAvgB) >= 20;
@@ -204,30 +254,67 @@ function buildUserPrompt(
   lines.push(
     `Q11（開放題 · 使用者自己的話 / the user's own words，不受 4 選項網格限制）：請用一段話描述你心中理想的「平衡」狀態。\n  → 回答：${input.freeText.trim() || "（未填）"}`,
   );
+  lines.push(`  → Q11 stance：${STANCE_LABEL_ZH[stance]}`);
   if (freeTextB !== null) {
-    lines.push(`  → Q11 估計 B ≈ ${freeTextB}（${nameForB(freeTextB)}）`);
+    lines.push(`  → Q11 原始估計 B ≈ ${freeTextB}（${nameForB(freeTextB)}）`);
+    if (effectiveFreeB !== null && effectiveFreeB !== freeTextB) {
+      lines.push(
+        `  → Q11 有效 B ≈ ${effectiveFreeB}（stance 調整後，${nameForB(effectiveFreeB)}）`,
+      );
+    }
+    lines.push(
+      `  → Q11 有效權重：${effectiveFreeWeight} / ${totalWeight} ${stanceNote}`,
+    );
+  } else {
+    lines.push(`  → ${stanceNote}`);
   }
   if (divergence) {
     lines.push(
       `  → ⚠ Q11 與選擇題方向明顯不一致（差距 ${Math.abs(
         (freeTextB ?? 0) - choiceAvgB,
-      )}）。請在分析中誠實指出這份張力，但**最終 Hex 仍應以選擇題整體方向為主**，Q11 只能在該方向內微調位置；例如選擇題整體偏暗而 Q11 寫「白」，結果**不應**直接跳到 #FFFFFF，而應停留在偏暗區間、僅稍微朝亮側鬆動一格。`,
+      )}）。請在分析中誠實指出這份張力，但**最終 Hex 仍應以選擇題整體方向為主**，Q11 只能在該方向內微調位置；aspiration／rejection 尤其不應把結果推到使用者嚮往或排斥的那個極端。`,
     );
   }
   lines.push("");
   lines.push(
-    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）${weightNote}。此為方向性參考，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、以及 Q11 使用者自己的語言）自行判斷。最終 Hex 必須且只能是 10 色調色盤中的其中一個（#808080 已被排除）。`,
+    `【整體傾向】${direction}（加權平均 B ≈ ${combinedAvgB}，語意上靠近 ${nameForB(combinedAvgB)}）。此為方向性參考，不是目標色，也未指定任何 Hex；請以 11 題整體格式塔（包含分佈的離群值、張力、Q11 使用者自己的語言、以及上面標示的 Q11 stance）自行判斷。最終 Hex 必須且只能是 10 色調色盤中的其中一個（#808080 已被排除）。`,
   );
   return lines.join("\n");
 }
 
 
-async function classifyFreeTextB(
+
+
+
+type Stance =
+  | "embodiment"
+  | "aspiration"
+  | "rejection"
+  | "ambivalence"
+  | "description";
+
+const STANCE_SET: ReadonlySet<Stance> = new Set([
+  "embodiment",
+  "aspiration",
+  "rejection",
+  "ambivalence",
+  "description",
+]);
+
+const STANCE_LABEL_ZH: Record<Stance, string> = {
+  embodiment: "embodiment（描述當下所處的狀態）",
+  aspiration: "aspiration（描述嚮往但尚未擁有的狀態）",
+  rejection: "rejection（推開／排斥所描述的狀態）",
+  ambivalence: "ambivalence（同時被兩端拉扯）",
+  description: "description（中性意象，無明顯個人立場）",
+};
+
+async function classifyFreeText(
   apiKey: string,
   freeText: string,
-): Promise<number | null> {
+): Promise<{ b: number | null; stance: Stance }> {
   const trimmed = freeText.trim();
-  if (!trimmed) return null;
+  if (!trimmed) return { b: null, stance: "description" };
   try {
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -237,40 +324,41 @@ async function classifyFreeTextB(
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        max_tokens: 10,
+        max_tokens: 80,
+        response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
             content:
-              "You map a short free-text answer about a person's ideal state of 'balance' to a brightness value B on a 0-100 scale, where 0 = heaviest / most inward / darkest and 100 = lightest / most open / brightest. Reply with ONLY a single integer between 0 and 100 (snapped to the nearest 10). No words, no punctuation.",
+              "You read a short free-text answer about a person's ideal state of 'balance' and classify it on TWO axes.\n\n1) b: brightness on 0-100 (0 = heaviest / most inward / darkest, 100 = lightest / most open / brightest). Snap to the nearest 10.\n2) stance: how the writer relates to what they wrote. One of:\n   - embodiment: describes the state they currently inhabit (\"I am this quiet\").\n   - aspiration: a state they want but do not have (\"I hope to become whiter\").\n   - rejection: pushing away from the named state (\"I hate that glaring white\").\n   - ambivalence: pulled both ways (\"I want brightness but I fear it\").\n   - description: neutral imagery, no clear personal stance (\"like morning mist\").\n\nReply with ONLY a JSON object of the exact shape {\"b\": <int 0-100>, \"stance\": \"<one of the five>\"}. No prose, no markdown.",
           },
           { role: "user", content: trimmed },
         ],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { b: null, stance: "description" };
     const j = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
     };
     const raw = j.choices?.[0]?.message?.content?.trim() ?? "";
-    const m = raw.match(/\d{1,3}/);
-    if (!m) return null;
-    const n = parseInt(m[0], 10);
-    if (!Number.isFinite(n)) return null;
-    return snapAwayFromMid(n);
+    const parsed = JSON.parse(raw) as { b?: unknown; stance?: unknown };
+    const bNum =
+      typeof parsed.b === "number"
+        ? parsed.b
+        : typeof parsed.b === "string"
+          ? parseInt(parsed.b, 10)
+          : NaN;
+    const b = Number.isFinite(bNum) ? snapAwayFromMid(bNum) : null;
+    const stance: Stance =
+      typeof parsed.stance === "string" && STANCE_SET.has(parsed.stance as Stance)
+        ? (parsed.stance as Stance)
+        : "description";
+    return { b, stance };
   } catch {
-    return null;
+    return { b: null, stance: "description" };
   }
 }
 
-// Snap 0..100 to nearest decile, but never return 50 (#808080 is excluded).
-// Sub-decile remainder ≥ 5 → 60, else 40.
-function snapAwayFromMid(n: number): number {
-  const clamped = Math.max(0, Math.min(100, n));
-  const snapped = Math.max(0, Math.min(100, Math.round(clamped / 10) * 10));
-  if (snapped !== 50) return snapped;
-  return clamped - 50 >= 0 ? 60 : 40;
-}
 
 function snappedToHex(b: number): string {
   const map: Record<number, string> = {
@@ -326,10 +414,11 @@ export const analyzeBalance = createServerFn({ method: "POST" })
       throw new Error("Missing LOVABLE_API_KEY");
     }
 
-    const [referenceBlock, freeTextB] = await Promise.all([
+    const [referenceBlock, freeTextClassification] = await Promise.all([
       loadReferenceBlock(),
-      classifyFreeTextB(apiKey, data.freeText),
+      classifyFreeText(apiKey, data.freeText),
     ]);
+    const { b: freeTextB, stance: freeTextStance } = freeTextClassification;
     const langDirective =
       data.lang === "en"
         ? `\n\n【Output Language Override】Respond in English only. The first sentence MUST follow this exact format: "Your result points to #XXXXXX [Color Name]." Use the color's English name mapped strictly as: #000000 Black, #1A1A1A Extreme Dark Grey, #333333 Dark Grey, #4D4D4D Deep Grey, #666666 Medium Grey, #999999 Medium Light Grey, #B3B3B3 Light Grey, #CCCCCC Bright Grey, #E6E6E6 Extreme Light Grey, #FFFFFF White. #808080 Standard Grey is NOT an option and must never be used. Keep the same three-tier structure (Mechanism / Mapping / Fluidity). Keep the entire response strictly under 200 words — self-condense if approaching the limit while still closing all three tiers. Do NOT use Markdown, headings, or extra annotations.`
@@ -347,10 +436,11 @@ export const analyzeBalance = createServerFn({ method: "POST" })
         max_tokens: data.lang === "en" ? 400 : 700,
         messages: [
           { role: "system", content: systemContent },
-          { role: "user", content: buildUserPrompt(data, freeTextB) },
+          { role: "user", content: buildUserPrompt(data, freeTextB, freeTextStance) },
         ],
       }),
     });
+
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
